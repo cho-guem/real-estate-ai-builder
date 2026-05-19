@@ -1,0 +1,129 @@
+# AI Real Estate Property Manager
+
+AI로 생성한 부동산 웹사이트를 위한 워드프레스 매물 관리 플러그인입니다. 고객은 ACF를 설치하거나 커스텀 필드를 직접 만들 필요 없이 워드프레스 관리자에서 공장, 창고, 토지 매물을 바로 등록하고 관리할 수 있습니다.
+
+## 주요 기능
+
+- `property` 커스텀 포스트 타입 등록
+- 워드프레스 기본 관리자 입력 UI 제공
+- 모든 매물 정보를 기본 post meta로 저장
+- `[property_search]`, `[property_list]` 숏코드 제공
+- 지역 전용 검색을 위한 `[property_location_search]` 숏코드 제공
+- 한국형 계층 지역 검색, 거래유형, 매물유형, 가격 범위, 면적 범위 필터 지원
+- `/region/창원시/`, `/region/성산구/`, `/region/상남동/` 같은 SEO 친화적 지역 URL 지원
+- 카드형 매물 목록과 플러그인 기본 매물 상세 템플릿 제공
+- 테마에 종속되지 않는 플러그인 방식
+
+## 설치 방법
+
+1. 워드프레스 관리자 > 플러그인 > 새로 추가 > 플러그인 업로드에서 `ai-real-estate-property-manager.zip`을 업로드합니다.
+2. 플러그인을 활성화합니다.
+3. 매물 관리 > 새 매물 추가로 이동합니다.
+4. 매물 정보를 입력한 뒤 공개합니다.
+
+## 매물 필드
+
+플러그인은 아래 필드를 워드프레스 기본 post meta로 저장합니다.
+
+- `property_title`
+- `transaction_type`: `sale` 또는 `rent`
+- `property_type`: `factory`, `warehouse`, `land`
+- `province`, 예: `경남`
+- `city`, 예: `창원시`
+- `district`, 예: `성산구`
+- `town`, 예: `상남동`
+- `region`
+- `address`
+- `price`
+- `area`
+- `land_area`
+- `building_area`
+- `power_capacity`
+- `ceiling_height`
+- `parking`
+- `road_width`
+- `move_in_date`
+- `description`
+- `latitude`
+- `longitude`
+- `featured_image`
+- `gallery_images`
+- `is_featured`
+
+## 숏코드
+
+### 검색 + 매물 목록
+
+필터와 매물 카드를 함께 표시하려면 페이지에 아래 숏코드를 추가합니다.
+
+```text
+[property_search]
+```
+
+### 매물 목록만 표시
+
+검색 폼 없이 매물 카드만 표시하려면 아래 숏코드를 사용합니다.
+
+```text
+[property_list]
+```
+
+### 지역 검색만 표시
+
+도·광역시, 시, 구·군, 읍·면·동 필터와 매물 카드를 표시하려면 아래 숏코드를 사용합니다.
+
+```text
+[property_location_search]
+```
+
+## 검색 필터
+
+`[property_search]` 숏코드는 아래 필터를 지원합니다.
+
+- 도·광역시
+- 시
+- 구·군
+- 읍·면·동
+- 기존 지역
+- 거래유형
+- 매물유형
+- 최저 가격
+- 최고 가격
+- 최소 면적
+- 최대 면적
+
+지역 드롭다운은 저장된 매물 meta를 기준으로 함께 작동합니다. 예를 들어 `창원시`를 선택하면 `city = 창원시`로 저장된 매물만 표시되고, `성산구`를 선택하면 `district = 성산구`, `상남동`을 선택하면 `town = 상남동` 매물만 표시됩니다.
+
+## SEO 친화적 지역 URL
+
+플러그인은 지역별 매물 목록 URL을 제공합니다.
+
+```text
+/region/{location}/
+```
+
+예시:
+
+```text
+/region/창원시/
+/region/성산구/
+/region/상남동/
+```
+
+이 URL은 하위 호환성을 위해 `province`, `city`, `district`, `town`, 기존 `region` 필드를 함께 검색합니다.
+
+플러그인을 활성화하거나 업그레이드한 뒤 `/region/` URL이 바로 열리지 않으면 워드프레스 관리자 > 설정 > 고유주소에서 변경사항 저장을 한 번 클릭하세요.
+
+## 이미지
+
+대표 이미지는 워드프레스 기본 특성 이미지를 사용할 수 있습니다. `featured_image` 필드에는 외부 이미지 URL 또는 첨부파일 ID를 저장할 수 있고, `gallery_images` 필드는 쉼표로 구분한 이미지 URL 또는 첨부파일 ID를 지원합니다.
+
+## 매물 상세 페이지
+
+플러그인은 `templates/single-property.php` 매물 상세 템플릿을 포함합니다. 테마 개발자는 활성 테마에 `single-property.php`를 추가해 이 템플릿을 덮어쓸 수 있습니다.
+
+## 참고
+
+- ACF 설정이 필요 없습니다.
+- 데이터는 워드프레스 기본 post meta에 저장되어 이전과 관리가 쉽습니다.
+- 활성화 시 `/properties/` URL을 위해 워드프레스 rewrite rule을 자동으로 갱신합니다.

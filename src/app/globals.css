@@ -1,0 +1,107 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css');
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.13 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.13 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.13 0 0);
+
+    /* ── Green accent (Korean SaaS brand color) ── */
+    --primary: oklch(0.59 0.19 150);
+    --primary-foreground: oklch(0.985 0 0);
+
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.20 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.52 0 0);
+    --accent: oklch(0.96 0.02 150);
+    --accent-foreground: oklch(0.20 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(0.92 0 0);
+    --input: oklch(0.92 0 0);
+    --ring: oklch(0.74 0.14 150);
+    --radius: 0.5rem;
+
+    --chart-1: oklch(0.59 0.19 150);
+    --chart-2: oklch(0.74 0.14 150);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.13 0 0);
+    --sidebar-primary: oklch(0.59 0.19 150);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.96 0.02 150);
+    --sidebar-accent-foreground: oklch(0.20 0 0);
+    --sidebar-border: oklch(0.92 0 0);
+    --sidebar-ring: oklch(0.74 0.14 150);
+
+    --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+      system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  }
+
+  .dark {
+    --background: oklch(0.13 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.18 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.18 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+
+    --primary: oklch(0.74 0.17 150);
+    --primary-foreground: oklch(0.13 0 0);
+
+    --secondary: oklch(0.24 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.24 0 0);
+    --muted-foreground: oklch(0.65 0 0);
+    --accent: oklch(0.22 0.04 150);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.59 0.19 150);
+
+    --sidebar: oklch(0.18 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.74 0.17 150);
+    --sidebar-primary-foreground: oklch(0.13 0 0);
+    --sidebar-accent: oklch(0.22 0.04 150);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.59 0.19 150);
+  }
+
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: var(--font-sans);
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans antialiased;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'kern' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
