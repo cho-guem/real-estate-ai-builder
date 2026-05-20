@@ -32,7 +32,7 @@ export function RegisterForm() {
         <div className="space-y-1">
           <p className="font-semibold text-foreground">이메일을 확인해주세요</p>
           <p className="text-sm text-muted-foreground">
-            가입하신 이메일로 인증 링크를 보내드렸어요.
+            {state.message}
             <br />
             링크를 클릭하면 로그인할 수 있어요.
           </p>
@@ -48,7 +48,7 @@ export function RegisterForm() {
   }
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-4" aria-busy={pending}>
       {state.error && (
         <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {state.error}
