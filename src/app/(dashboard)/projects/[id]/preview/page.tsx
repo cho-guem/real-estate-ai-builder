@@ -116,7 +116,7 @@ export default async function ProjectPreviewPage({ params }: PreviewPageProps) {
             데스크톱/모바일 토글로 생성된 초안을 확인할 수 있습니다. 다운로드, 재생성, 공유 기능은 다음 단계에서 연결됩니다.
           </div>
           {generatedSite ? (
-            <LandingPreviewRenderer site={generatedSite} />
+            <LandingPreviewRenderer site={generatedSite} projectId={project.id} />
           ) : (
             <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
               생성 사이트 데이터를 불러오지 못했습니다. 워크플로우에서 랜딩페이지를 다시 생성해주세요.

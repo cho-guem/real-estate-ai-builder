@@ -1,17 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clipboard, Download, FileCode2, FileJson, Globe2, HelpCircle, MapPin, Monitor, Phone, ShieldCheck, Smartphone } from "lucide-react";
+import { CheckCircle2, Download, Loader2, MapPin, Monitor, Phone, ShieldCheck, Smartphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { renderGeneratedSiteHtml } from "@/lib/generated-site";
-import {
-  buildElementorExportDebug,
-  mapGeneratedSiteToElementor,
-  mapGeneratedSiteToMinimalElementorTest,
-  renderElementorImportInstructions,
-} from "@/lib/elementor-export";
 import type { GeneratedSiteData } from "@/types/generated-site.types";
 
 type PreviewMode = "desktop" | "mobile";
@@ -53,129 +46,76 @@ export function buildPreviewValidation(site?: GeneratedSiteData | null) {
   };
 }
 
-function downloadText(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+function GeneratedSiteExportControls({ projectId }: { projectId: string }) {
+  const [status, setStatus] = useState<"idle" | "downloading" | "success" | "error">("idle");
+  const [error, setError] = useState("");
 
-function GeneratedSiteExportControls({ site }: { site: GeneratedSiteData }) {
-  const [copied, setCopied] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
-  const elementorJson = mapGeneratedSiteToElementor(site);
-  const minimalElementorJson = mapGeneratedSiteToMinimalElementorTest(site);
-  const elementorDebugJson = buildElementorExportDebug(site);
+  async function downloadWordPressPackage() {
+    setStatus("downloading");
+    setError("");
 
-  async function copyPrompt() {
-    await navigator.clipboard.writeText(site.exports.structuredPrompt);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/wordpress-package`);
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? "WordPress 패키지를 생성하지 못했습니다.");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "wordpress-site-package.zip";
+      link.click();
+      URL.revokeObjectURL(url);
+      setStatus("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "다운로드 중 오류가 발생했습니다.");
+      setStatus("error");
+    }
   }
 
   return (
     <div className="rounded-xl border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="font-semibold">내보내기</h3>
-          <p className="text-sm text-muted-foreground">GeneratedSiteData 기준으로 내보내기 파일을 준비합니다.</p>
+          <h3 className="font-semibold">WordPress 설치 패키지</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Elementor 템플릿, 매물 관리 플러그인, 설치 안내서를 하나의 ZIP으로 다운로드합니다.
+          </p>
         </div>
-        <Button type="button" disabled className="gap-1.5">
-          <Globe2 className="h-3.5 w-3.5" />
-          Publish Website
-        </Button>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Button
           type="button"
-          variant="outline"
-          onClick={() => downloadText("generated-site.json", JSON.stringify(site, null, 2), "application/json")}
-          className="gap-1.5"
+          onClick={downloadWordPressPackage}
+          disabled={status === "downloading"}
+          className="h-10 gap-2 px-4 font-semibold"
         >
-          <FileJson className="h-3.5 w-3.5" />
-          Export JSON
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => downloadText("mock-landing.html", renderGeneratedSiteHtml(site), "text/html")}
-          className="gap-1.5"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Download mock HTML
-        </Button>
-        <Button type="button" variant="outline" onClick={copyPrompt} className="gap-1.5">
-          {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
-          {copied ? "Copied" : "Copy structured prompt"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => downloadText("elementor-page.json", JSON.stringify(elementorJson, null, 2), "application/json")}
-          className="gap-1.5"
-        >
-          <FileCode2 className="h-3.5 w-3.5" />
-          Export Safe Elementor JSON
-        </Button>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => downloadText("elementor-minimal-test.json", JSON.stringify(minimalElementorJson, null, 2), "application/json")}
-          className="gap-1.5"
-        >
-          <FileCode2 className="h-3.5 w-3.5" />
-          Export Minimal Test JSON
-        </Button>
-        <Button type="button" variant="outline" onClick={() => setShowInstructions(true)} className="gap-1.5">
-          <HelpCircle className="h-3.5 w-3.5" />
-          WordPress import instructions
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => downloadText("elementor-export-debug.json", JSON.stringify(elementorDebugJson, null, 2), "application/json")}
-          className="gap-1.5"
-        >
-          <FileJson className="h-3.5 w-3.5" />
-          Export Debug JSON
-        </Button>
-        <Button type="button" variant="outline" disabled>
-          Future WordPress API export
+          {status === "downloading" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : status === "success" ? (
+            <CheckCircle2 className="h-4 w-4" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          {status === "downloading" ? "패키지 생성 중..." : "WordPress 사이트 패키지 다운로드"}
         </Button>
       </div>
 
-      {showInstructions && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20 p-4">
-          <div className="w-full max-w-lg rounded-xl border bg-background p-5 shadow-lg">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h4 className="font-semibold">WordPress Elementor 가져오기 안내</h4>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  현재는 파일 내보내기만 지원합니다. 실제 WordPress API 연결은 이후 단계에서 추가됩니다.
-                </p>
-              </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowInstructions(false)}>
-                닫기
-              </Button>
-            </div>
-            <ol className="mt-4 space-y-2 text-sm text-muted-foreground">
-              {renderElementorImportInstructions().map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ol>
-          </div>
+      {status === "success" && (
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          WordPress에서 바로 설치 가능: Elementor JSON, 매물 관리 플러그인 ZIP, README가 포함되어 있습니다.
+        </div>
+      )}
+      {status === "error" && (
+        <div className="mt-4 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
         </div>
       )}
     </div>
   );
 }
 
-export function LandingPreviewRenderer({ site }: { site: GeneratedSiteData }) {
+export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSiteData; projectId: string }) {
   const [mode, setMode] = useState<PreviewMode>("desktop");
   const wrapperWidth = mode === "mobile" ? "max-w-[390px]" : "max-w-5xl";
   const compact = mode === "mobile";
@@ -183,7 +123,7 @@ export function LandingPreviewRenderer({ site }: { site: GeneratedSiteData }) {
 
   return (
     <div className="space-y-4">
-      <GeneratedSiteExportControls site={site} />
+      <GeneratedSiteExportControls projectId={projectId} />
       <section className="rounded-xl border bg-card p-5 shadow-sm">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

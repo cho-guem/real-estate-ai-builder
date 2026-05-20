@@ -1583,7 +1583,7 @@ export function MultiAgentWorkflowPanel({
 
           {isLandingCompleted ? (
             generatedSite ? (
-              <LandingPreviewRenderer site={generatedSite} />
+              <LandingPreviewRenderer site={generatedSite} projectId={projectId} />
             ) : (
               <section className="rounded-xl border bg-card p-5 text-sm text-muted-foreground shadow-sm">
                 생성 사이트 데이터를 준비하는 중입니다. 새로고침 후 다시 확인해주세요.
