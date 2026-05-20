@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
 import { Badge } from "@/components/ui/badge";
+import { ProjectDeleteButton } from "@/components/projects/project-delete-button";
 import { WORKFLOW_STEPS } from "@/config/workflow-steps";
 import type { ProjectConfig } from "@/config/project-options";
 
@@ -88,18 +89,22 @@ export default async function ProjectsPage() {
             const status = STATUS_MAP[project.status] ?? STATUS_MAP.draft;
 
             return (
-              <Link
+              <article
                 key={project.id}
-                href={`/projects/${project.id}`}
                 className="group flex flex-col rounded-xl border bg-card p-5 shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md"
               >
                 <div className="mb-3 flex items-start justify-between gap-2">
-                  <h3 className="font-semibold leading-snug group-hover:text-primary transition-colors line-clamp-2">
-                    {project.name}
-                  </h3>
-                  <Badge variant={status.variant} className="shrink-0">
-                    {status.label}
-                  </Badge>
+                  <Link href={`/projects/${project.id}`} className="min-w-0">
+                    <h3 className="line-clamp-2 font-semibold leading-snug transition-colors hover:text-primary">
+                      {project.name}
+                    </h3>
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant={status.variant}>
+                      {status.label}
+                    </Badge>
+                    <ProjectDeleteButton projectId={project.id} projectName={project.name} />
+                  </div>
                 </div>
                 <Badge variant="secondary" className="mb-3 w-fit gap-1">
                   <Building2 className="h-3 w-3" />
@@ -147,11 +152,14 @@ export default async function ProjectsPage() {
                   <span className="text-xs text-muted-foreground">
                     {formatDate(project.created_at)}
                   </span>
-                  <span className="flex items-center gap-0.5 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="flex items-center gap-0.5 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                  >
                     상세 보기 <ChevronRight className="h-3.5 w-3.5" />
-                  </span>
+                  </Link>
                 </div>
-              </Link>
+              </article>
             );
           })}
         </div>

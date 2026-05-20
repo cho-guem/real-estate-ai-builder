@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
 import { Badge } from "@/components/ui/badge";
+import { ProjectDeleteButton } from "@/components/projects/project-delete-button";
 import { WORKFLOW_STEPS } from "@/config/workflow-steps";
 import type { ProjectConfig } from "@/config/project-options";
 
@@ -166,19 +167,23 @@ export default async function DashboardPage() {
             {projectSummaries.map(({ project, run, completedSteps, progress }) => {
               const cfg = (project.config ?? {}) as ProjectConfig;
               return (
-                <Link
+                <div
                   key={project.id}
-                  href={`/projects/${project.id}`}
                   className="rounded-xl border bg-card p-5 shadow-sm transition hover:border-primary/30 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-semibold leading-snug">{project.name}</h3>
+                      <Link href={`/projects/${project.id}`} className="block hover:text-primary">
+                        <h3 className="font-semibold leading-snug">{project.name}</h3>
+                      </Link>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {cfg.region || "지역 미입력"} · {cfg.propertyType || "매물 유형 미입력"}
                       </p>
                     </div>
-                    <Badge variant="secondary">부동산</Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant="secondary">부동산</Badge>
+                      <ProjectDeleteButton projectId={project.id} projectName={project.name} />
+                    </div>
                   </div>
                   <div className="mt-5">
                     <div className="mb-2 flex items-center justify-between text-xs">
@@ -195,10 +200,16 @@ export default async function DashboardPage() {
                         ? "웹사이트 초안이 준비되었습니다."
                         : run
                           ? "워크플로우를 이어서 진행하세요."
-                          : "워크플로우를 시작하세요."}
+                      : "워크플로우를 시작하세요."}
                     </p>
                   </div>
-                </Link>
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-primary"
+                  >
+                    상세 보기 <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
               );
             })}
           </div>
