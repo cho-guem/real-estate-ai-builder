@@ -1,7 +1,7 @@
 import type { ElementorColumn, ElementorExportDocument, ElementorSection, ElementorWidget } from "@/types/elementor.types";
 import type { GeneratedSiteData } from "@/types/generated-site.types";
 
-type StableWidgetType = "heading" | "text-editor" | "button" | "image" | "spacer";
+type StableWidgetType = "heading" | "text-editor" | "button" | "image" | "spacer" | "shortcode";
 
 export interface ElementorExportDebugLog {
   exportedSectionCount: number;
@@ -103,6 +103,14 @@ function createElementorBuilder() {
     });
   }
 
+  function shortcode(code: string, settings: Record<string, unknown> = {}) {
+    return widget("shortcode", {
+      shortcode: code,
+      _margin: dimensions(8, 0, 8, 0),
+      ...settings,
+    });
+  }
+
   function imagePlaceholder(settings: Record<string, unknown> = {}) {
     // Elementor image widgets expect a URL object. A tiny inline SVG keeps import
     // stable without relying on media-library attachment IDs or icon libraries.
@@ -178,7 +186,7 @@ function createElementorBuilder() {
     };
   }
 
-  return { heading, text, button, spacer, imagePlaceholder, column, section, debug };
+  return { heading, text, button, spacer, shortcode, imagePlaceholder, column, section, debug };
 }
 
 // Import stability rule: every exported node follows section -> columns -> widgets.
@@ -304,6 +312,26 @@ export function mapGeneratedSiteToElementor(site: GeneratedSiteData): ElementorE
       ),
       { background_color: site.colors.surface }
     ),
+    b.section("property_search_shortcode", [
+      b.column(
+        [
+          b.heading("매물 검색 및 목록", "h2", { title_color: site.colors.primary }),
+          b.text("워드프레스 플러그인을 설치하면 아래 쇼트코드 영역에 실제 매물 검색 폼과 목록이 표시됩니다."),
+          b.shortcode("[property_search]"),
+          b.shortcode("[property_list]"),
+        ],
+        100,
+        {
+          background_background: "classic",
+          background_color: "#ffffff",
+          border_border: "solid",
+          border_color: "#e2e8f0",
+          border_width: dimensions(1),
+          border_radius: dimensions(16),
+          padding: dimensions(24),
+        }
+      ),
+    ], { background_color: "#ffffff" }),
     b.section("cta_inquiry", [
       b.column(
         [
@@ -348,6 +376,8 @@ export function mapGeneratedSiteToElementor(site: GeneratedSiteData): ElementorE
         [
           b.heading(map?.title ?? "지도 기반 입지 검토", "h2", { title_color: site.colors.primary }),
           b.text(map?.body ?? "주요 입지와 매물 밀집 구역을 보여줍니다."),
+          b.shortcode("[property_location_search]"),
+          b.shortcode("[property_map]"),
           b.spacer(220, {
             _background_background: "classic",
             _background_color: "#f1f5f9",

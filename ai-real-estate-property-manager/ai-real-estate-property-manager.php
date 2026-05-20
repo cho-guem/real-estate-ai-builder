@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AI Real Estate Property Manager
  * Description: AI 부동산 웹사이트를 위한 매물 관리, 검색, 목록 표시 시스템입니다.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Dadasol
  * Text Domain: ai-real-estate-property-manager
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AIREPM_VERSION', '1.0.0');
+define('AIREPM_VERSION', '1.1.0');
 define('AIREPM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AIREPM_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -28,7 +28,9 @@ final class AI_Real_Estate_Property_Manager {
 
     private function __construct() {
         add_action('init', array($this, 'register_property_post_type'));
+        add_action('init', array($this, 'register_property_meta_fields'));
         add_action('init', array($this, 'register_region_rewrite_rules'));
+        add_action('acf/init', array($this, 'register_acf_field_group'));
         add_filter('query_vars', array($this, 'register_query_vars'));
         add_action('add_meta_boxes', array($this, 'add_property_meta_boxes'));
         add_action('save_post_property', array($this, 'save_property_meta'), 10, 2);
@@ -36,7 +38,10 @@ final class AI_Real_Estate_Property_Manager {
         add_shortcode('property_search', array($this, 'render_property_search_shortcode'));
         add_shortcode('property_list', array($this, 'render_property_list_shortcode'));
         add_shortcode('property_location_search', array($this, 'render_property_location_search_shortcode'));
+        add_shortcode('property_map', array($this, 'render_property_map_shortcode'));
         add_filter('template_include', array($this, 'load_plugin_templates'));
+        add_action('elementor/query/airepm_properties', array($this, 'configure_elementor_property_query'));
+        add_action('elementor/query/airepm_featured_properties', array($this, 'configure_elementor_featured_property_query'));
     }
 
     public function register_property_post_type() {
@@ -56,11 +61,38 @@ final class AI_Real_Estate_Property_Manager {
             'labels' => $labels,
             'public' => true,
             'has_archive' => true,
+            'publicly_queryable' => true,
+            'show_ui' => true,
+            'show_in_menu' => true,
             'rewrite' => array('slug' => 'properties'),
             'menu_icon' => 'dashicons-building',
-            'supports' => array('title', 'editor', 'thumbnail', 'excerpt'),
+            'supports' => array('title', 'editor', 'thumbnail', 'excerpt', 'custom-fields'),
             'show_in_rest' => true,
+            'capability_type' => 'post',
         ));
+    }
+
+    public function register_property_meta_fields() {
+        foreach ($this->get_field_definitions() as $key => $field) {
+            $schema_type = 'string';
+            if ($field['type'] === 'checkbox') {
+                $schema_type = 'boolean';
+            } elseif ($field['type'] === 'number') {
+                $schema_type = 'number';
+            }
+
+            register_post_meta('property', $key, array(
+                'single' => true,
+                'type' => $schema_type,
+                'show_in_rest' => true,
+                'auth_callback' => function () {
+                    return current_user_can('edit_posts');
+                },
+                'sanitize_callback' => $field['type'] === 'textarea'
+                    ? 'sanitize_textarea_field'
+                    : 'sanitize_text_field',
+            ));
+        }
     }
 
     public function register_region_rewrite_rules() {
@@ -73,6 +105,10 @@ final class AI_Real_Estate_Property_Manager {
     }
 
     public function add_property_meta_boxes() {
+        if (function_exists('acf_add_local_field_group')) {
+            return;
+        }
+
         add_meta_box(
             'airepm_property_details',
             '매물 정보',
@@ -81,6 +117,78 @@ final class AI_Real_Estate_Property_Manager {
             'normal',
             'high'
         );
+    }
+
+    public function register_acf_field_group() {
+        if (!function_exists('acf_add_local_field_group')) {
+            return;
+        }
+
+        $fields = array();
+        foreach ($this->get_field_definitions() as $key => $field) {
+            $acf_field = array(
+                'key' => 'field_airepm_' . $key,
+                'label' => $field['label'],
+                'name' => $key,
+                'type' => $this->map_field_type_to_acf($field['type']),
+                'required' => in_array($key, array('property_title', 'transaction_type', 'property_type'), true) ? 1 : 0,
+                'wrapper' => array('width' => '50'),
+            );
+
+            if ($field['type'] === 'select' && isset($field['options'])) {
+                $acf_field['choices'] = $field['options'];
+                $acf_field['allow_null'] = 1;
+                $acf_field['ui'] = 1;
+            }
+
+            if ($field['type'] === 'textarea') {
+                $acf_field['rows'] = 4;
+                $acf_field['wrapper'] = array('width' => '100');
+            }
+
+            if ($field['type'] === 'checkbox') {
+                $acf_field['message'] = '예';
+                $acf_field['ui'] = 1;
+            }
+
+            if (in_array($key, array('latitude', 'longitude'), true)) {
+                $acf_field['instructions'] = $key === 'latitude'
+                    ? '지도 표시용 위도(lat)를 입력하세요.'
+                    : '지도 표시용 경도(lng)를 입력하세요.';
+            }
+
+            $fields[] = $acf_field;
+        }
+
+        acf_add_local_field_group(array(
+            'key' => 'group_airepm_property_fields',
+            'title' => '매물 표준 필드',
+            'fields' => $fields,
+            'location' => array(
+                array(
+                    array(
+                        'param' => 'post_type',
+                        'operator' => '==',
+                        'value' => 'property',
+                    ),
+                ),
+            ),
+            'position' => 'normal',
+            'style' => 'default',
+            'label_placement' => 'top',
+            'instruction_placement' => 'label',
+            'active' => true,
+            'description' => 'AI 부동산 빌더 표준 매물 필드입니다. ACF가 없는 경우 플러그인 기본 메타박스가 동일한 meta key로 저장합니다.',
+        ));
+    }
+
+    private function map_field_type_to_acf($type) {
+        if ($type === 'number') return 'number';
+        if ($type === 'textarea') return 'textarea';
+        if ($type === 'select') return 'select';
+        if ($type === 'checkbox') return 'true_false';
+        if ($type === 'date') return 'date_picker';
+        return 'text';
     }
 
     private function get_field_definitions() {
@@ -218,6 +326,59 @@ final class AI_Real_Estate_Property_Manager {
         return ob_get_clean();
     }
 
+    public function render_property_map_shortcode($atts = array()) {
+        $filters = $this->get_current_filters();
+        $query = new WP_Query(array(
+            'post_type' => 'property',
+            'post_status' => 'publish',
+            'posts_per_page' => 50,
+            'meta_query' => $this->build_meta_query($filters),
+        ));
+
+        $markers = array();
+        while ($query->have_posts()) {
+            $query->the_post();
+            $post_id = get_the_ID();
+            $latitude = get_post_meta($post_id, 'latitude', true);
+            $longitude = get_post_meta($post_id, 'longitude', true);
+            if ($latitude !== '' && $longitude !== '') {
+                $markers[] = array(
+                    'title' => get_post_meta($post_id, 'property_title', true) ?: get_the_title($post_id),
+                    'location' => $this->get_full_location($post_id),
+                    'latitude' => $latitude,
+                    'longitude' => $longitude,
+                );
+            }
+        }
+        wp_reset_postdata();
+
+        ob_start();
+        ?>
+        <div class="airepm-map">
+            <div class="airepm-map-header">
+                <strong>매물 지도</strong>
+                <span><?php echo esc_html(count($markers)); ?>개 위치</span>
+            </div>
+            <div class="airepm-map-placeholder">
+                <p>지도 API 설정 후 이 영역에 매물 위치가 표시됩니다.</p>
+                <small>Google Maps, Kakao Maps, Naver Maps 스크립트와 아래 좌표 데이터를 연결하세요.</small>
+            </div>
+            <?php if (!empty($markers)) : ?>
+                <ul class="airepm-map-list">
+                    <?php foreach ($markers as $marker) : ?>
+                        <li>
+                            <strong><?php echo esc_html($marker['title']); ?></strong>
+                            <span><?php echo esc_html($marker['location']); ?></span>
+                            <small><?php echo esc_html($marker['latitude'] . ', ' . $marker['longitude']); ?></small>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
+
     public function render_region_archive() {
         $region = $this->get_region_query_value();
         ob_start();
@@ -227,6 +388,25 @@ final class AI_Real_Estate_Property_Manager {
         echo $this->render_property_list();
         echo '</div>';
         return ob_get_clean();
+    }
+
+    public function configure_elementor_property_query($query) {
+        $query->set('post_type', 'property');
+        $query->set('post_status', 'publish');
+        $query->set('posts_per_page', 12);
+    }
+
+    public function configure_elementor_featured_property_query($query) {
+        $query->set('post_type', 'property');
+        $query->set('post_status', 'publish');
+        $query->set('posts_per_page', 6);
+        $query->set('meta_query', array(
+            array(
+                'key' => 'is_featured',
+                'value' => '1',
+                'compare' => '=',
+            ),
+        ));
     }
 
     private function render_search_form() {

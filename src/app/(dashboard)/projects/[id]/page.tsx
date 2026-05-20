@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, MapPin, Home, ArrowLeftRight, Users, FileText, Eye, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, MapPin, Home, ArrowLeftRight, Users, FileText, Eye, CheckCircle2, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
@@ -116,6 +116,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 <Eye className="h-3.5 w-3.5" />
                 미리보기
               </Link>
+              {isComplete && (
+                <a
+                  href={`/api/projects/${project.id}/wordpress-package`}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  WordPress 패키지 다운로드
+                </a>
+              )}
             </div>
           </div>
         </div>

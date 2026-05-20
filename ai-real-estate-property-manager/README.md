@@ -5,13 +5,17 @@ AI로 생성한 부동산 웹사이트를 위한 워드프레스 매물 관리 �
 ## 주요 기능
 
 - `property` 커스텀 포스트 타입 등록
-- 워드프레스 기본 관리자 입력 UI 제공
+- ACF가 설치되어 있으면 매물 표준 필드 그룹 자동 등록
+- ACF가 없어도 동작하는 워드프레스 기본 관리자 입력 UI 제공
 - 모든 매물 정보를 기본 post meta로 저장
 - `[property_search]`, `[property_list]` 숏코드 제공
 - 지역 전용 검색을 위한 `[property_location_search]` 숏코드 제공
+- 지도 영역을 위한 `[property_map]` 숏코드 제공
 - 한국형 계층 지역 검색, 거래유형, 매물유형, 가격 범위, 면적 범위 필터 지원
 - `/region/창원시/`, `/region/성산구/`, `/region/상남동/` 같은 SEO 친화적 지역 URL 지원
 - 카드형 매물 목록과 플러그인 기본 매물 상세 템플릿 제공
+- Elementor Loop Grid에서 `property` post type 선택 가능
+- Elementor Query ID `airepm_properties`, `airepm_featured_properties` 지원
 - 테마에 종속되지 않는 플러그인 방식
 
 ## 설치 방법
@@ -20,6 +24,8 @@ AI로 생성한 부동산 웹사이트를 위한 워드프레스 매물 관리 �
 2. 플러그인을 활성화합니다.
 3. 매물 관리 > 새 매물 추가로 이동합니다.
 4. 매물 정보를 입력한 뒤 공개합니다.
+
+ACF가 설치된 사이트에서는 `매물 표준 필드` 그룹이 자동으로 표시됩니다. ACF가 없는 사이트에서는 플러그인 기본 메타박스가 표시되므로 별도 필드 생성 작업 없이 바로 사용할 수 있습니다.
 
 ## 매물 필드
 
@@ -75,6 +81,42 @@ AI로 생성한 부동산 웹사이트를 위한 워드프레스 매물 관리 �
 ```text
 [property_location_search]
 ```
+
+### 지도 영역 표시
+
+좌표가 입력된 매물을 지도 영역에 연결하려면 아래 숏코드를 사용합니다.
+
+```text
+[property_map]
+```
+
+현재 기본 출력은 지도 API 연결 전 placeholder와 좌표 목록입니다. Google Maps, Kakao Maps, Naver Maps 중 사용하는 API 스크립트를 테마나 별도 플러그인에서 연결하면 실제 지도 렌더링으로 확장할 수 있습니다.
+
+## Elementor Loop Grid 호환
+
+Elementor Pro Loop Grid 또는 Posts 위젯에서 Source/Post Type을 `property`로 선택하면 매물 CPT를 바로 사용할 수 있습니다.
+
+추천 설정:
+
+- Post Type: `property`
+- 정렬: 최신순 또는 가격순 커스텀 쿼리
+- Featured Image: 워드프레스 특성 이미지
+- Title: 매물 제목
+- Excerpt 또는 Dynamic Tag: 매물 설명
+
+Elementor Query ID를 사용하는 경우:
+
+```text
+airepm_properties
+```
+
+전체 매물을 최신순으로 불러옵니다.
+
+```text
+airepm_featured_properties
+```
+
+`is_featured = 1`로 저장된 추천 매물만 불러옵니다.
 
 ## 검색 필터
 
