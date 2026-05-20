@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, FileDown, Layers3, Sparkles } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
 const STEPS = [
   "벤치마크 선택",
@@ -9,7 +10,13 @@ const STEPS = [
   "랜딩페이지 미리보기",
 ];
 
-export default function MarketingLandingPage() {
+export default async function MarketingLandingPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const dashboardHref = user ? "/dashboard" : "/login";
+
   return (
     <main className="min-h-screen bg-background">
       <header className="border-b bg-background/90">
@@ -59,7 +66,7 @@ export default function MarketingLandingPage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/dashboard"
+              href={dashboardHref}
               className="inline-flex h-9 items-center rounded-lg border px-4 text-sm font-medium transition-colors hover:bg-muted"
             >
               대시보드 보기
