@@ -19,6 +19,7 @@ type WorkflowApiResult =
 
 type WorkflowActionRequest =
   | { action: "select_benchmarks"; selectedCandidateIds: string[] }
+  | { action: "analyze_custom_benchmark"; customUrl: string }
   | { action: "approve_architecture"; menus: Json }
   | { action: "save_features"; features: Json }
   | { action: "approve_ux_flow"; notes?: string; revisionRequest?: string }
@@ -34,6 +35,8 @@ type WorkflowActionRequest =
       selectedPaletteId: string;
       selectedTypographyId: string;
       selectedLayoutId: string;
+      logoAsset?: string;
+      brandImageAsset?: string;
     }
   | { action: "generate_landing" }
   | {
@@ -54,11 +57,94 @@ function buildMockArtifact(
 ): Json {
   return defaultIndustryPreset.buildArtifact(artifactType as AgentArtifactType, cfg, projectName);
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isAgencyRun(run: { metadata: Json }) {
+  return isRecord(run.metadata) && run.metadata.workflowKind === "real_estate_agency";
+}
+
+function buildCustomBenchmarkCandidate(customUrl: string, cfg: ProjectConfig): Record<string, Json> {
+  let host = customUrl;
+  try {
+    host = new URL(customUrl).hostname.replace(/^www\./, "");
+  } catch {
+    host = customUrl.replace(/^https?:\/\//, "").split("/")[0] || "custom-reference";
+  }
+
+  return {
+    id: `custom-${Date.now()}`,
+    siteName: `${host} 참고 사이트`,
+    category: "사용자 입력 벤치마크",
+    previewTone: "직접 분석",
+    heroTitle: `${cfg.region} ${cfg.propertyType} 전문 상담`,
+    heroSubtitle: "입지, 가격, 조건을 빠르게 비교하고 바로 문의할 수 있는 구조를 제안합니다.",
+    heroCopy: `${cfg.region} ${cfg.propertyType} 조건을 한눈에 비교하고 전문가 상담으로 바로 연결합니다.`,
+    ctaLabel: "이 스타일로 제작",
+    ctaStyle: "상단과 하단에 동일한 상담 CTA를 반복 배치하는 전환형 버튼 구조",
+    sectionStructure: ["히어로", "추천 매물", "지역 분석", "상담 CTA", "문의 폼"],
+    menuStructure: ["홈", "추천 매물", "지역 분석", "상담 문의"],
+    colorTone: "짙은 네이비와 따뜻한 오렌지 CTA를 조합한 신뢰형 톤",
+    layoutPattern: "좌측 신뢰 카피, 우측 추천 매물/문의 카드가 결합된 전환형 히어로",
+    layoutNotes: "첫 화면에서는 핵심 카피와 문의 버튼을 먼저 보여주고, 아래에는 추천 매물과 지역 분석을 순차 배치합니다.",
+    description: "입력한 URL의 첫 화면 흐름을 기준으로 신뢰 문구, CTA 위치, 카드형 섹션 구조를 유사하게 재구성합니다.",
+    whyUseful: "사용자가 선호하는 실제 사이트 톤을 이후 사이트 구조, 디자인, 랜딩 생성 단계에 반영할 수 있습니다.",
+    strengths: ["사용자 선호 스타일을 직접 반영", "히어로/CTA 구조를 빠르게 복제 가능", "브랜드 톤 기준점이 명확함"],
+    weaknesses: ["실제 크롤링 대신 목업 분석으로 구조를 추정합니다", "이미지와 로고는 별도 업로드가 필요합니다"],
+    borrow: ["히어로 카피 흐름", "CTA 위치", "섹션 순서", "카드형 정보 구조"],
+    fitScore: 95,
+    websiteUrl: customUrl,
+  };
+}
+
+function readText(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function readTextArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function buildBenchmarkReference(
+  candidate: Record<string, Json | undefined> | null,
+  source: "candidate" | "custom_url" = "candidate"
+) {
+  const siteName = readText(candidate?.siteName) || (source === "custom_url" ? "입력한 URL" : "선택한 벤치마크");
+  const benchmarkUrl = readText(candidate?.websiteUrl);
+  const id = readText(candidate?.id);
+
+  return {
+    selectedBenchmarkId: id,
+    selectedBenchmarkName: siteName,
+    selectedBenchmarkSource: source,
+    benchmarkUrl,
+    benchmarkNotes: readText(candidate?.whyUseful) || readText(candidate?.description) || `${siteName}의 구조를 참고합니다.`,
+    heroCopy: readText(candidate?.heroCopy) || readText(candidate?.heroTitle),
+    ctaStyle: readText(candidate?.ctaStyle) || readText(candidate?.ctaLabel),
+    sectionStructure: readTextArray(candidate?.sectionStructure),
+    menuStructure: readTextArray(candidate?.menuStructure),
+    colorTone: readText(candidate?.colorTone),
+    layoutNotes: readText(candidate?.layoutNotes) || readText(candidate?.layoutPattern),
+  };
+}
+
+async function getRunArtifactByType(
+  service: GenerationWorkflowService,
+  runId: string,
+  artifactType: string
+) {
+  const artifacts = await service.getRunArtifacts(runId);
+  return artifacts.find((artifact) => artifact.artifact_type === artifactType) ?? null;
+}
+
 async function loadWorkflow(
   service: GenerationWorkflowService,
   projectId: string
 ): Promise<WorkflowSnapshot> {
-  const run = await service.getLatestProjectRun(projectId);
+  const runs = await service.getProjectRuns(projectId);
+  const run = runs.find((candidate) => !isAgencyRun(candidate)) ?? null;
   if (!run) return { run: null, steps: [], artifacts: [] };
 
   const [steps, artifacts] = await Promise.all([
@@ -211,7 +297,8 @@ export async function PATCH(
 
   const body = (await request.json()) as WorkflowActionRequest;
   const workflowService = new GenerationWorkflowService(supabase);
-  const run = await workflowService.getLatestProjectRun(project.id);
+  const runs = await workflowService.getProjectRuns(project.id);
+  const run = runs.find((candidate) => !isAgencyRun(candidate)) ?? null;
 
   if (!run) {
     return NextResponse.json(
@@ -221,8 +308,60 @@ export async function PATCH(
   }
 
   try {
+    if (body.action === "analyze_custom_benchmark") {
+      const artifact = await getRunArtifactByType(workflowService, run.id, "benchmark");
+      const benchmarkStep = await workflowService.getRunStep(run.id, "benchmark");
+      const customCandidate = buildCustomBenchmarkCandidate(
+        body.customUrl,
+        project.config as ProjectConfig
+      );
+
+      if (artifact) {
+        const artifactData =
+          artifact.data && typeof artifact.data === "object" && !Array.isArray(artifact.data)
+            ? (artifact.data as Record<string, Json | undefined>)
+            : {};
+        const candidates = Array.isArray(artifactData.candidates) ? artifactData.candidates : [];
+        const reference = buildBenchmarkReference(customCandidate, "custom_url");
+        const nextData = mergeArtifactData(artifact.data, {
+          customBenchmarkUrl: body.customUrl,
+          benchmarkUrl: body.customUrl,
+          benchmarkUrlAnalysisStatus: "completed",
+          selectedCandidateIds: [readText(customCandidate.id)],
+          selectedBenchmarkId: reference.selectedBenchmarkId,
+          selectedBenchmarkName: reference.selectedBenchmarkName,
+          selectedBenchmarkSource: "custom_url",
+          selectedBenchmarkStyle: customCandidate,
+          selectedCandidates: [customCandidate],
+          benchmarkNotes: reference.benchmarkNotes,
+          heroCopy: reference.heroCopy,
+          ctaStyle: reference.ctaStyle,
+          sectionStructure: reference.sectionStructure,
+          menuStructure: reference.menuStructure,
+          colorTone: reference.colorTone,
+          layoutNotes: reference.layoutNotes,
+          candidates: [customCandidate, ...candidates],
+          customBenchmarkAnalysis: {
+            url: body.customUrl,
+            status: "completed",
+            message: "입력한 벤치마킹 URL을 기준으로 사이트 구조 분석이 완료되었습니다.",
+            heroCopy: reference.heroCopy,
+            ctaStyle: reference.ctaStyle,
+            sectionStructure: reference.sectionStructure,
+            menuStructure: reference.menuStructure,
+            colorTone: reference.colorTone,
+            layoutNotes: reference.layoutNotes,
+          },
+        });
+        await workflowService.updateArtifact(artifact.id, { data: nextData });
+        if (benchmarkStep) {
+          await workflowService.updateStep(benchmarkStep.id, { output: nextData });
+        }
+      }
+    }
+
     if (body.action === "select_benchmarks") {
-      const artifact = await workflowService.getLatestArtifactByType(project.id, "benchmark");
+      const artifact = await getRunArtifactByType(workflowService, run.id, "benchmark");
       const benchmarkStep = await workflowService.getRunStep(run.id, "benchmark");
       const strategyStep = await workflowService.getRunStep(run.id, "strategy");
       const architectureStep = await workflowService.getRunStep(run.id, "site_architecture");
@@ -242,13 +381,32 @@ export async function PATCH(
           (candidate) =>
             typeof candidate.id === "string" && body.selectedCandidateIds.includes(candidate.id)
         );
+        const primarySelectedCandidate = selectedCandidates[0] ?? null;
+        const source = readText(primarySelectedCandidate?.id).startsWith("custom-")
+          ? "custom_url"
+          : "candidate";
+        const reference = buildBenchmarkReference(primarySelectedCandidate, source);
+        const approvedBenchmark = mergeArtifactData(artifact.data, {
+          selectedCandidateIds: body.selectedCandidateIds,
+          selectedBenchmarkId: reference.selectedBenchmarkId,
+          selectedBenchmarkName: reference.selectedBenchmarkName,
+          selectedBenchmarkSource: reference.selectedBenchmarkSource,
+          benchmarkUrl: reference.benchmarkUrl,
+          benchmarkNotes: reference.benchmarkNotes,
+          heroCopy: reference.heroCopy,
+          ctaStyle: reference.ctaStyle,
+          sectionStructure: reference.sectionStructure,
+          menuStructure: reference.menuStructure,
+          colorTone: reference.colorTone,
+          layoutNotes: reference.layoutNotes,
+          selectedBenchmarkStyle: primarySelectedCandidate,
+          selectedCandidates,
+          approved: true,
+          selectionMessage: "선택한 벤치마킹 스타일이 다음 단계에 반영됩니다.",
+        });
         await workflowService.updateArtifact(artifact.id, {
           status: "approved",
-          data: mergeArtifactData(artifact.data, {
-            selectedCandidateIds: body.selectedCandidateIds,
-            selectedCandidates,
-            approved: true,
-          }),
+          data: approvedBenchmark,
         });
       }
       if (benchmarkStep) {
@@ -443,7 +601,7 @@ export async function PATCH(
     }
 
     if (body.action === "approve_design") {
-      const artifact = await workflowService.getLatestArtifactByType(project.id, "design");
+      const artifact = await getRunArtifactByType(workflowService, run.id, "design");
       const designStep = await workflowService.getRunStep(run.id, "design");
       const landingStep = await workflowService.getRunStep(run.id, "landing_page");
       const artifactData =

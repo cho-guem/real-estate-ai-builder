@@ -150,11 +150,17 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
             style={{ backgroundColor: site.colors.surface }}
           >
             <header className="flex items-center justify-between gap-4 border-b bg-white/85 px-5 py-4">
-              <div>
-                <p className="text-sm font-bold" style={{ color: site.colors.primary }}>
-                  {site.footer.brandName}
-                </p>
-                <p className="text-xs text-slate-500">{site.layout.name}</p>
+              <div className="flex items-center gap-3">
+                {site.assets?.logo && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={site.assets.logo} alt={site.footer.brandName} className="h-9 w-9 rounded-lg object-cover" />
+                )}
+                <div>
+                  <p className="text-sm font-bold" style={{ color: site.colors.primary }}>
+                    {site.footer.brandName}
+                  </p>
+                  <p className="text-xs text-slate-500">{site.layout.name}</p>
+                </div>
               </div>
               {!compact && (
                 <nav className="flex gap-4 text-xs font-medium text-slate-600">
@@ -185,7 +191,12 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
                 </div>
               </section>
 
-              <aside className="rounded-2xl bg-white p-4 shadow-sm">
+              <aside className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                {site.assets?.heroImage && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={site.assets.heroImage} alt="히어로 이미지" className="h-48 w-full object-cover" />
+                )}
+                <div className="p-4">
                 <p className="text-sm font-semibold" style={{ color: site.colors.primary }}>
                   생성 사이트 구조
                 </p>
@@ -199,6 +210,7 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
                     </div>
                   ))}
                 </div>
+                </div>
               </aside>
             </div>
 
@@ -206,7 +218,12 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
               <div className={cn("grid gap-3", compact ? "grid-cols-1" : "grid-cols-3")}>
                 {site.trustItems.slice(0, 3).map((item, index) => (
                   <div key={`${item}-${index}`} className="rounded-xl border p-4">
+                    {index === 0 && site.assets?.brandImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={site.assets.brandImage} alt="브랜드 대표 이미지" className="mb-3 h-24 w-full rounded-lg object-cover" />
+                    ) : (
                     <ShieldCheck className="h-5 w-5" style={{ color: site.colors.accent }} />
+                    )}
                     <p className="mt-3 text-sm leading-relaxed text-slate-600">{item}</p>
                   </div>
                 ))}

@@ -2,6 +2,7 @@
 -- Migration: 003_expand_workflow_artifact_types
 -- Purpose:   Add planning-stage artifact types for the expanded
 --            multi-agent website planning workflow.
+-- Idempotent: safe if values already exist.
 -- =============================================================
 
 alter type public.website_artifact_type add value if not exists 'strategy';

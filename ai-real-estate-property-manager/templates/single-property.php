@@ -57,8 +57,10 @@ while (have_posts()) :
         'factory' => '공장',
         'warehouse' => '창고',
         'land' => '토지',
+        'commercial' => '상업용',
     );
 
+    $available_date = $meta('available_date') ? $meta('available_date') : $meta('move_in_date');
     $facts = array(
         '면적' => $area ? $area . ' m²' : '',
         '대지면적' => $meta('land_area') ? $meta('land_area') . ' m²' : '',
@@ -67,7 +69,7 @@ while (have_posts()) :
         '층고' => $meta('ceiling_height'),
         '주차' => $meta('parking'),
         '도로 폭' => $meta('road_width'),
-        '입주 가능일' => $meta('move_in_date'),
+        '입주/사용 가능일' => $available_date,
     );
     ?>
 
@@ -100,7 +102,7 @@ while (have_posts()) :
                     <p class="airepm-single-price"><?php echo esc_html(number_format((float) $price)); ?></p>
                 <?php endif; ?>
 
-                <a class="airepm-single-button" href="#property-inquiry">상세 문의하기</a>
+                <a class="airepm-single-button" href="#property-inquiry">이 매물 문의하기</a>
             </aside>
         </section>
 
@@ -160,7 +162,8 @@ while (have_posts()) :
 
         <section id="property-inquiry" class="airepm-single-section">
             <h2>문의</h2>
-            <p>이 영역에 문의 폼 플러그인 또는 테마의 상담 신청 폼을 추가할 수 있습니다. 매물 상세 페이지는 문의 폼 블록이나 숏코드를 바로 넣을 수 있도록 준비되어 있습니다.</p>
+            <p>이 매물에 대한 상담 신청 폼을 연결하세요. Contact Form 7, WPForms, Elementor Form 등의 숏코드를 이 영역에 추가하면 바로 문의 접수를 받을 수 있습니다.</p>
+            <a class="airepm-single-button" href="#">문의 버튼 설정하기</a>
         </section>
     </main>
 

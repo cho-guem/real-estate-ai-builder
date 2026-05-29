@@ -66,6 +66,16 @@ export interface BenchmarkArtifact {
     siteName: string;
     category: string;
     previewTone: string;
+    heroTitle?: string;
+    heroSubtitle?: string;
+    heroCopy?: string;
+    ctaLabel?: string;
+    ctaStyle?: string;
+    sectionStructure?: string[];
+    menuStructure?: string[];
+    colorTone?: string;
+    layoutPattern?: string;
+    layoutNotes?: string;
     description: string;
     whyUseful?: string;
     strengths: string[];
@@ -179,9 +189,24 @@ export interface DesignArtifact {
     name: string;
     description: string;
   }>;
+  heroStyleOptions?: Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>;
+  heroImageOptions?: Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>;
   selectedPaletteId?: string;
   selectedTypographyId?: string;
   selectedLayoutId?: string;
+  selectedHeroStyleId?: string;
+  selectedHeroImageId?: string;
+  heroImageAsset?: string;
+  logoAsset?: string;
+  brandImageAsset?: string;
   colorPalette: Array<{
     name: string;
     value: string;

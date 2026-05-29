@@ -31,6 +31,12 @@ export interface GeneratedSiteCta {
   body: string;
 }
 
+export interface GeneratedSiteAssets {
+  heroImage?: string;
+  logo?: string;
+  brandImage?: string;
+}
+
 export interface GeneratedSiteSection {
   id: string;
   type: "hero" | "trust" | "properties" | "cta" | "map" | "inquiry" | "footer";
@@ -77,6 +83,7 @@ export interface GeneratedSiteData {
   typography: GeneratedSiteTypography;
   layout: GeneratedSiteLayout;
   cta: GeneratedSiteCta;
+  assets?: GeneratedSiteAssets;
   sections: GeneratedSiteSection[];
   trustItems: string[];
   cards: GeneratedSiteCard[];

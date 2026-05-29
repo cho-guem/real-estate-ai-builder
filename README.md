@@ -11,6 +11,7 @@ AI 기반 부동산 웹사이트 제작 워크플로우 앱입니다. 사용자�
 - Anthropic API
 - Tailwind CSS
 - Vercel 배포
+- WordPress REST API / WP-CLI / Docker deployment foundation
 
 ## 로컬 실행
 
@@ -116,3 +117,13 @@ scripts/    보조 스크립트
 ```
 
 `ai-real-estate-property-manager/`는 생성된 워드프레스 부동산 매물 관리 플러그인 소스입니다. 설치용 zip 파일은 생성 산출물이므로 GitHub 업로드 대상에서 제외됩니다.
+
+## WordPress 자동 배포
+
+WordPress 자동 배포 SaaS 아키텍처는 아래 문서에 정리되어 있습니다.
+
+```text
+docs/WORDPRESS_AUTO_DEPLOYMENT.md
+```
+
+현재 앱은 프로젝트별 WordPress 배포 요청, 배포 단계 저장, 모바일 대응 대시보드 UI를 제공합니다. 실제 WordPress 생성, 플러그인 설치, Elementor import, 도메인 연결은 WP-CLI/Docker/호스팅 provider API를 실행할 수 있는 별도 worker에서 처리하도록 설계되어 있습니다.

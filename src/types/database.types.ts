@@ -36,6 +36,7 @@ export interface Database {
           name: string;
           slug: string;
           description: string | null;
+          deployment_mode: Database["public"]["Enums"]["deployment_mode"];
           status: "draft" | "published" | "archived";
           config: Json;
           created_at: string;
@@ -47,6 +48,7 @@ export interface Database {
           name: string;
           slug: string;
           description?: string | null;
+          deployment_mode?: Database["public"]["Enums"]["deployment_mode"];
           status?: "draft" | "published" | "archived";
           config?: Json;
           created_at?: string;
@@ -56,6 +58,7 @@ export interface Database {
           name?: string;
           slug?: string;
           description?: string | null;
+          deployment_mode?: Database["public"]["Enums"]["deployment_mode"];
           status?: "draft" | "published" | "archived";
           config?: Json;
           updated_at?: string;
@@ -200,10 +203,176 @@ export interface Database {
         };
         Relationships: [];
       };
+      wordpress_sites: {
+        Row: {
+          id: string;
+          project_id: string;
+          user_id: string;
+          provider: string;
+          site_url: string | null;
+          admin_url: string | null;
+          domain: string | null;
+          wp_install_path: string | null;
+          wp_version: string | null;
+          status: Database["public"]["Enums"]["wordpress_deployment_status"];
+          admin_username: string | null;
+          admin_email: string | null;
+          encrypted_admin_password: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          user_id: string;
+          provider?: string;
+          site_url?: string | null;
+          admin_url?: string | null;
+          domain?: string | null;
+          wp_install_path?: string | null;
+          wp_version?: string | null;
+          status?: Database["public"]["Enums"]["wordpress_deployment_status"];
+          admin_username?: string | null;
+          admin_email?: string | null;
+          encrypted_admin_password?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          project_id?: string;
+          user_id?: string;
+          provider?: string;
+          site_url?: string | null;
+          admin_url?: string | null;
+          domain?: string | null;
+          wp_install_path?: string | null;
+          wp_version?: string | null;
+          status?: Database["public"]["Enums"]["wordpress_deployment_status"];
+          admin_username?: string | null;
+          admin_email?: string | null;
+          encrypted_admin_password?: string | null;
+          metadata?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      wordpress_deployments: {
+        Row: {
+          id: string;
+          site_id: string | null;
+          project_id: string;
+          user_id: string;
+          status: Database["public"]["Enums"]["wordpress_deployment_status"];
+          requested_domain: string | null;
+          provider: string;
+          started_at: string | null;
+          completed_at: string | null;
+          failed_at: string | null;
+          error_message: string | null;
+          retry_count: number;
+          max_retries: number;
+          last_attempt_at: string | null;
+          next_retry_at: string | null;
+          input: Json;
+          output: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          site_id?: string | null;
+          project_id: string;
+          user_id: string;
+          status?: Database["public"]["Enums"]["wordpress_deployment_status"];
+          requested_domain?: string | null;
+          provider?: string;
+          started_at?: string | null;
+          completed_at?: string | null;
+          failed_at?: string | null;
+          error_message?: string | null;
+          retry_count?: number;
+          max_retries?: number;
+          last_attempt_at?: string | null;
+          next_retry_at?: string | null;
+          input?: Json;
+          output?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          site_id?: string | null;
+          project_id?: string;
+          user_id?: string;
+          status?: Database["public"]["Enums"]["wordpress_deployment_status"];
+          requested_domain?: string | null;
+          provider?: string;
+          started_at?: string | null;
+          completed_at?: string | null;
+          failed_at?: string | null;
+          error_message?: string | null;
+          retry_count?: number;
+          max_retries?: number;
+          last_attempt_at?: string | null;
+          next_retry_at?: string | null;
+          input?: Json;
+          output?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      wordpress_deployment_steps: {
+        Row: {
+          id: string;
+          deployment_id: string;
+          project_id: string;
+          step_key: string;
+          label: string;
+          status: Database["public"]["Enums"]["wordpress_deployment_step_status"];
+          order_index: number;
+          started_at: string | null;
+          completed_at: string | null;
+          error_message: string | null;
+          metadata: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          deployment_id: string;
+          project_id: string;
+          step_key: string;
+          label: string;
+          status?: Database["public"]["Enums"]["wordpress_deployment_step_status"];
+          order_index: number;
+          started_at?: string | null;
+          completed_at?: string | null;
+          error_message?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          deployment_id?: string;
+          project_id?: string;
+          step_key?: string;
+          label?: string;
+          status?: Database["public"]["Enums"]["wordpress_deployment_step_status"];
+          order_index?: number;
+          started_at?: string | null;
+          completed_at?: string | null;
+          error_message?: string | null;
+          metadata?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: {
+      deployment_mode: "managed_hosting" | "existing_hosting";
       project_status: "draft" | "published" | "archived";
       generation_run_status:
         | "queued"
@@ -226,6 +395,22 @@ export interface Database {
         | "landing_page"
         | "review";
       website_artifact_status: "draft" | "approved" | "rejected" | "superseded";
+      wordpress_deployment_status:
+        | "draft"
+        | "queued"
+        | "validating"
+        | "deploying"
+        | "importing"
+        | "configuring"
+        | "provisioning_wordpress"
+        | "installing_plugin"
+        | "running_setup"
+        | "importing_elementor"
+        | "connecting_domain"
+        | "completed"
+        | "failed"
+        | "canceled";
+      wordpress_deployment_step_status: "pending" | "running" | "completed" | "failed" | "skipped";
     };
   };
 }

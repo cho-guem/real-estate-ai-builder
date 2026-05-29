@@ -3,28 +3,23 @@ export interface ElementorWidget {
   elType: "widget";
   widgetType: string;
   settings: Record<string, unknown>;
+  elements?: [];
   isInner?: boolean;
 }
 
-export interface ElementorColumn {
+export interface ElementorContainer {
   id: string;
-  elType: "column";
+  elType: "container";
   settings: Record<string, unknown>;
-  elements: ElementorWidget[];
+  elements: Array<ElementorContainer | ElementorWidget>;
   isInner?: boolean;
 }
 
-export interface ElementorSection {
-  id: string;
-  elType: "section";
-  settings: Record<string, unknown>;
-  elements: ElementorColumn[];
-  isInner?: boolean;
-}
+export type ElementorElement = ElementorContainer | ElementorWidget;
 
 export interface ElementorExportDocument {
   version: "0.4";
   title: string;
   type: "page";
-  content: ElementorSection[];
+  content: ElementorContainer[];
 }

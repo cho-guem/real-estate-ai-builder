@@ -23,7 +23,7 @@ async function readDirectoryAsZipFiles(rootDir: string, zipRoot: string): Promis
 
   for (const entry of entries) {
     const fullPath = path.join(rootDir, entry.name);
-    const relativePath = path.posix.join(zipRoot, entry.name);
+    const relativePath = path.posix.join(zipRoot, entry.name).replace(/\\/g, "/");
 
     if (entry.isDirectory()) {
       files.push(...await readDirectoryAsZipFiles(fullPath, relativePath));
@@ -51,6 +51,7 @@ function buildPackageReadme(projectName: string) {
 1. elementor-template.json
    - Elementor에서 가져올 랜딩페이지 템플릿입니다.
    - Hero, 신뢰 포인트, 추천 매물, 지역 분석, 문의 CTA 섹션을 포함합니다.
+   - 최신 Elementor의 Container 기반 구조로 구성되어 바로 편집할 수 있습니다.
    - 매물 검색/목록/지도 영역에는 WordPress 쇼트코드 위젯이 삽입되어 있습니다.
 
 2. ai-real-estate-property-manager.zip
@@ -73,16 +74,28 @@ function buildPackageReadme(projectName: string) {
 ## 쇼트코드
 
 - [property_search]
-  - 지역, 거래유형, 매물유형, 가격, 면적 필터와 매물 목록을 함께 표시합니다.
+  - 지역, 거래유형, 매물유형, 가격, 면적 검색 폼만 표시합니다.
 
 - [property_list]
   - 매물 카드 목록만 표시합니다.
 
 - [property_location_search]
-  - 도·광역시, 시, 구·군, 읍·면·동 기준 지역 검색과 매물 목록을 표시합니다.
+  - 도·광역시, 시, 구·군, 읍·면·동 기준 지역 검색 폼만 표시합니다.
 
 - [property_map]
-  - 지도 영역 placeholder와 좌표가 입력된 매물 목록을 표시합니다.
+  - 지도 영역 placeholder와 좌표 목록을 표시합니다.
+
+## 권장 페이지 섹션 순서
+
+Elementor 템플릿은 아래 순서로 구성됩니다.
+
+1. Hero
+2. Trust Points
+3. Recommended Property Cards
+4. Property Search & List
+5. Location Map Review
+6. Consultation CTA/Form
+7. Footer
 
 ## 지도 API 설정 방법
 

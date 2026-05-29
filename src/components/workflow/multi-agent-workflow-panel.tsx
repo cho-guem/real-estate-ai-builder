@@ -7,6 +7,7 @@ import {
   Circle,
   Clock3,
   Database,
+  ExternalLink,
   GripVertical,
   Loader2,
   Lock,
@@ -40,6 +41,7 @@ type WorkflowApiResult =
 
 type WorkflowAction =
   | { action: "select_benchmarks"; selectedCandidateIds: string[] }
+  | { action: "analyze_custom_benchmark"; customUrl: string }
   | { action: "approve_architecture"; menus: Json }
   | { action: "save_features"; features: Json }
   | { action: "approve_ux_flow"; notes?: string; revisionRequest?: string }
@@ -55,6 +57,8 @@ type WorkflowAction =
       selectedPaletteId: string;
       selectedTypographyId: string;
       selectedLayoutId: string;
+      logoAsset?: string;
+      brandImageAsset?: string;
     }
   | { action: "generate_landing" }
   | { action: "complete_review"; checklist: Json; score: number; issues: string[] };
@@ -150,12 +154,39 @@ function BenchmarkSelection({
   const data = isObject(artifact.data) ? artifact.data : {};
   const candidates = readObjectArray(data.candidates);
   const [selectedIds, setSelectedIds] = useState(() => readStringArray(data.selectedCandidateIds));
+  const [customUrl, setCustomUrl] = useState(readString(data.customBenchmarkUrl));
   const [isSaving, setIsSaving] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [notice, setNotice] = useState(readString(data.selectionMessage));
+  const customAnalysis = isObject(data.customBenchmarkAnalysis) ? data.customBenchmarkAnalysis : {};
 
   async function saveSelection() {
     setIsSaving(true);
     try {
       await onAction({ action: "select_benchmarks", selectedCandidateIds: selectedIds });
+      setNotice("선택한 벤치마킹 스타일이 다음 단계에 반영됩니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function analyzeCustomUrl() {
+    if (!customUrl.trim()) return;
+    setIsAnalyzing(true);
+    try {
+      await onAction({ action: "analyze_custom_benchmark", customUrl: customUrl.trim() });
+      setNotice("입력한 벤치마킹 URL을 기준으로 사이트 구조 분석이 완료되었습니다.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
+
+  async function selectSingleStyle(id: string) {
+    setSelectedIds([id]);
+    setIsSaving(true);
+    try {
+      await onAction({ action: "select_benchmarks", selectedCandidateIds: [id] });
+      setNotice("선택한 벤치마킹 스타일이 다음 단계에 반영됩니다.");
     } finally {
       setIsSaving(false);
     }
@@ -167,34 +198,88 @@ function BenchmarkSelection({
         <h4 className="font-semibold">{readString(data.title)}</h4>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{readString(data.summary)}</p>
       </div>
+      <div className="rounded-xl border bg-muted/20 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="flex-1">
+            <label className="text-sm font-medium">직접 참고할 벤치마크 URL</label>
+            <Input
+              value={customUrl}
+              onChange={(event) => setCustomUrl(event.target.value)}
+              placeholder="https://land.naver.com"
+              className="mt-2"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              URL을 입력하면 목업 분석으로 히어로, CTA, 섹션 구조가 유사한 후보를 생성합니다.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={analyzeCustomUrl}
+            disabled={!customUrl.trim() || isAnalyzing}
+            className="gap-1.5"
+          >
+            {isAnalyzing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            URL 분석
+          </Button>
+        </div>
+      </div>
+      {(notice || readString(customAnalysis.message)) && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {notice || readString(customAnalysis.message)}
+        </div>
+      )}
+      {readString(data.benchmarkUrl) && (
+        <div className="rounded-xl border bg-background p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">URL 기반 mock 분석 결과</p>
+              <p className="mt-1 break-all text-xs text-muted-foreground">{readString(data.benchmarkUrl)}</p>
+            </div>
+            <Badge variant="secondary">분석 완료</Badge>
+          </div>
+          <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Hero Copy</p>
+              <p className="mt-1">{readString(customAnalysis.heroCopy)}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">CTA Style</p>
+              <p className="mt-1">{readString(customAnalysis.ctaStyle)}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Section Structure</p>
+              <p className="mt-1">{readStringArray(customAnalysis.sectionStructure).join(" / ")}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Menu Structure</p>
+              <p className="mt-1">{readStringArray(customAnalysis.menuStructure).join(" / ")}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Color Tone</p>
+              <p className="mt-1">{readString(customAnalysis.colorTone)}</p>
+            </div>
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Layout Notes</p>
+              <p className="mt-1">{readString(customAnalysis.layoutNotes)}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid gap-3 xl:grid-cols-2">
         {candidates.map((candidate) => {
           const id = readString(candidate.id);
           const selected = selectedIds.includes(id);
+          const websiteUrl = readString(candidate.websiteUrl);
           return (
-            <button
+            <div
               key={id}
-              type="button"
-              onClick={() => {
-                setSelectedIds((prev) =>
-                  prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-                );
-              }}
               className={cn(
                 "group overflow-hidden rounded-xl border bg-background text-left shadow-sm transition",
                 selected ? "border-primary ring-2 ring-primary/20" : "hover:border-primary/40"
               )}
             >
-              <div className="grid gap-0 sm:grid-cols-[150px_minmax(0,1fr)]">
-                <div className="flex min-h-36 items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-orange-50 p-4">
-                  <div className="text-center">
-                    <div className="mx-auto mb-2 h-10 w-10 rounded-lg border bg-white shadow-sm" />
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {readString(candidate.previewTone)}
-                    </p>
-                  </div>
-                </div>
-                <div className="p-4">
+              <div className="p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold">{readString(candidate.siteName)}</p>
@@ -202,12 +287,19 @@ function BenchmarkSelection({
                         {readString(candidate.category)}
                       </p>
                     </div>
-                    <Badge variant={selected ? "default" : "outline"}>
-                      적합도 {typeof candidate.fitScore === "number" ? candidate.fitScore : 0}
-                    </Badge>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant={selected ? "default" : "outline"}>
+                        적합도 {typeof candidate.fitScore === "number" ? candidate.fitScore : 0}
+                      </Badge>
+                      {selected && <Badge>선택됨</Badge>}
+                    </div>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {readString(candidate.description)}
+                  </p>
+                  <p className="mt-2 rounded-lg border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                    <span className="font-semibold text-foreground">구조 메모 </span>
+                    {readString(candidate.layoutPattern) || "신뢰 카피, 추천 매물, 문의 CTA를 한 화면에 배치합니다."}
                   </p>
                   <p className="mt-2 rounded-lg bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                     <span className="font-semibold text-foreground">활용 이유 </span>
@@ -223,12 +315,43 @@ function BenchmarkSelection({
                       <BulletList items={readStringArray(candidate.borrow).slice(0, 2)} />
                     </div>
                   </div>
-                  <p className="mt-3 break-all text-xs text-muted-foreground">
-                    {readString(candidate.websiteUrl)}
-                  </p>
-                </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {websiteUrl && (
+                      <a
+                        href={websiteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition hover:bg-muted"
+                      >
+                        라이브 사이트 보기
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => selectSingleStyle(id)}
+                      disabled={isSaving}
+                      className="gap-1.5"
+                    >
+                      {selected && <CheckCircle2 className="h-3.5 w-3.5" />}
+                      이 스타일 선택
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedIds((prev) =>
+                          prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+                        );
+                      }}
+                    >
+                      {selected ? "선택 해제" : "비교에 추가"}
+                    </Button>
+                  </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -929,6 +1052,9 @@ function DesignSystemSelector({
         selectedId={selectedLayoutId}
         onSelect={setSelectedLayoutId}
       />
+      <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        이미지는 홈페이지 생성 후 관리자 화면에서 교체할 수 있습니다.
+      </div>
       <div className="flex justify-end">
         <Button
           onClick={approve}

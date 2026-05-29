@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AI Real Estate Property Manager
  * Description: AI 부동산 웹사이트를 위한 매물 관리, 검색, 목록 표시 시스템입니다.
- * Version: 1.1.0
+ * Version: 1.2.1
  * Author: Dadasol
  * Text Domain: ai-real-estate-property-manager
  */
@@ -11,13 +11,14 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AIREPM_VERSION', '1.1.0');
+define('AIREPM_VERSION', '1.2.1');
 define('AIREPM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AIREPM_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 final class AI_Real_Estate_Property_Manager {
     private static $instance = null;
     private $saving_property_title = false;
+    private $rendered_property_ids = array();
 
     public static function instance() {
         if (self::$instance === null) {
@@ -33,6 +34,8 @@ final class AI_Real_Estate_Property_Manager {
         add_action('acf/init', array($this, 'register_acf_field_group'));
         add_filter('query_vars', array($this, 'register_query_vars'));
         add_action('add_meta_boxes', array($this, 'add_property_meta_boxes'));
+        add_action('admin_menu', array($this, 'register_setup_admin_page'));
+        add_action('admin_post_airepm_run_initial_setup', array($this, 'handle_run_initial_setup'));
         add_action('save_post_property', array($this, 'save_property_meta'), 10, 2);
         add_action('wp_enqueue_scripts', array($this, 'enqueue_public_assets'));
         add_shortcode('property_search', array($this, 'render_property_search_shortcode'));
@@ -88,15 +91,570 @@ final class AI_Real_Estate_Property_Manager {
                 'auth_callback' => function () {
                     return current_user_can('edit_posts');
                 },
-                'sanitize_callback' => $field['type'] === 'textarea'
-                    ? 'sanitize_textarea_field'
-                    : 'sanitize_text_field',
+                'sanitize_callback' => array($this, 'sanitize_property_meta_value'),
             ));
         }
     }
 
+    public function sanitize_property_meta_value($value, $meta_key) {
+        $fields = $this->get_field_definitions();
+        $type = isset($fields[$meta_key]) ? $fields[$meta_key]['type'] : 'text';
+
+        if ($type === 'checkbox') {
+            return $value ? true : false;
+        }
+
+        if ($type === 'number') {
+            return is_numeric($value) ? (float) $value : 0;
+        }
+
+        if ($type === 'textarea') {
+            return sanitize_textarea_field($value);
+        }
+
+        return sanitize_text_field($value);
+    }
+
     public function register_region_rewrite_rules() {
         add_rewrite_rule('^region/([^/]+)/?$', 'index.php?airepm_region=$matches[1]', 'top');
+    }
+
+    public function register_setup_admin_page() {
+        add_submenu_page(
+            'edit.php?post_type=property',
+            '초기 설정',
+            '초기 설정',
+            'manage_options',
+            'airepm-initial-setup',
+            array($this, 'render_setup_admin_page')
+        );
+    }
+
+    public function render_setup_admin_page() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $settings = $this->get_setup_settings();
+        $setup_page_id = (int) get_option('airepm_setup_page_id', 0);
+        $setup_page = $setup_page_id ? get_post($setup_page_id) : null;
+        $homepage_id = (int) get_option('airepm_homepage_id', 0);
+        $homepage = $homepage_id ? get_post($homepage_id) : null;
+        $menu_id = (int) get_option('airepm_menu_id', 0);
+        $sample_count = $this->count_sample_properties();
+        $setup_ran = isset($_GET['airepm_setup']) && $_GET['airepm_setup'] === 'complete';
+        ?>
+        <div class="wrap">
+            <h1>AI 부동산 사이트 설정 마법사</h1>
+            <?php if ($setup_ran) : ?>
+                <div class="notice notice-success is-dismissible">
+                    <p>사이트 자동 설정을 완료했습니다. 기존 페이지, 메뉴, 샘플 콘텐츠는 중복 생성하지 않았습니다.</p>
+                </div>
+            <?php endif; ?>
+            <p>사업 정보만 입력하면 홈페이지, 매물 페이지, 메뉴, SEO 제목, 샘플 글과 샘플 매물을 자동으로 구성합니다.</p>
+
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="airepm-wizard">
+                <?php wp_nonce_field('airepm_run_initial_setup', 'airepm_setup_nonce'); ?>
+                <input type="hidden" name="action" value="airepm_run_initial_setup">
+
+                <section class="airepm-wizard-step">
+                    <span>Step 1</span>
+                    <h2>사업 유형</h2>
+                    <select name="business_type">
+                        <option value="factory" <?php selected($settings['business_type'], 'factory'); ?>>공장·창고 전문 부동산</option>
+                        <option value="commercial" <?php selected($settings['business_type'], 'commercial'); ?>>상업용 부동산</option>
+                        <option value="land" <?php selected($settings['business_type'], 'land'); ?>>토지·개발 부지</option>
+                        <option value="local" <?php selected($settings['business_type'], 'local'); ?>>지역 종합 부동산</option>
+                    </select>
+                </section>
+
+                <section class="airepm-wizard-step">
+                    <span>Step 2</span>
+                    <h2>회사명</h2>
+                    <input type="text" name="company_name" value="<?php echo esc_attr($settings['company_name']); ?>" placeholder="예: 다다솔 부동산">
+                </section>
+
+                <section class="airepm-wizard-step">
+                    <span>Step 3</span>
+                    <h2>메인 컬러</h2>
+                    <input type="color" name="main_color" value="<?php echo esc_attr($settings['main_color']); ?>">
+                    <p>홈페이지 주요 버튼과 강조 영역에 사용됩니다.</p>
+                </section>
+
+                <section class="airepm-wizard-step">
+                    <span>Step 4</span>
+                    <h2>주요 지역</h2>
+                    <input type="text" name="region" value="<?php echo esc_attr($settings['region']); ?>" placeholder="예: 창원·김해·부산">
+                </section>
+
+                <section class="airepm-wizard-step airepm-wizard-submit">
+                    <span>Step 5</span>
+                    <h2>사이트 자동 생성</h2>
+                    <p>홈페이지, 매물 페이지, 메뉴, SEO 제목, 샘플 블로그 글, 샘플 매물을 자동으로 생성합니다.</p>
+                    <button type="submit" class="button button-primary button-hero">사이트 자동 생성 / 다시 실행</button>
+                </section>
+            </form>
+
+            <table class="widefat striped airepm-wizard-status">
+                <tbody>
+                    <tr>
+                        <th scope="row">홈페이지</th>
+                        <td><?php echo $homepage ? esc_html($homepage->post_title) . ' (#' . esc_html($homepage->ID) . ')' : '아직 생성되지 않음'; ?></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">매물 페이지</th>
+                        <td><?php echo $setup_page ? esc_html($setup_page->post_title) . ' (#' . esc_html($setup_page->ID) . ')' : '아직 생성되지 않음'; ?></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">메뉴</th>
+                        <td><?php echo $menu_id ? '생성됨 (#' . esc_html($menu_id) . ')' : '아직 생성되지 않음'; ?></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">샘플 매물</th>
+                        <td><?php echo esc_html($sample_count); ?> / 3개</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <style>
+                .airepm-wizard{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;max-width:1200px;margin:24px 0}
+                .airepm-wizard-step{display:flex;min-height:210px;flex-direction:column;gap:10px;padding:20px;border:1px solid #d8e3dc;border-radius:14px;background:#fff}
+                .airepm-wizard-step span{color:#1f7a4d;font-weight:800}
+                .airepm-wizard-step h2{margin:0;color:#17261f;font-size:18px}
+                .airepm-wizard-step input,.airepm-wizard-step select{width:100%;min-height:42px}
+                .airepm-wizard-step p{color:#5b6a62}
+                .airepm-wizard-submit{background:#f2faf5}
+                .airepm-wizard-status{max-width:760px;margin-top:16px}
+                @media(max-width:1100px){.airepm-wizard{grid-template-columns:repeat(2,minmax(0,1fr))}}
+                @media(max-width:680px){.airepm-wizard{grid-template-columns:1fr}.airepm-wizard-step{min-height:auto}}
+            </style>
+        </div>
+        <?php
+    }
+
+    public function handle_run_initial_setup() {
+        if (!current_user_can('manage_options')) {
+            wp_die('권한이 없습니다.');
+        }
+
+        check_admin_referer('airepm_run_initial_setup', 'airepm_setup_nonce');
+        $settings = $this->sanitize_setup_settings($_POST);
+        update_option('airepm_setup_settings', $settings);
+        $this->run_initial_setup($settings);
+        wp_safe_redirect(add_query_arg('airepm_setup', 'complete', admin_url('edit.php?post_type=property&page=airepm-initial-setup')));
+        exit;
+    }
+
+    public function run_initial_setup($settings = null) {
+        $settings = is_array($settings) ? $settings : $this->get_setup_settings();
+        $this->register_property_post_type();
+        $homepage_id = $this->create_homepage($settings);
+        $this->create_default_property_page();
+        $this->create_main_menu($settings, $homepage_id);
+        $this->create_sample_properties();
+        $this->create_sample_blog_posts($settings);
+        $this->generate_seo_settings($settings, $homepage_id);
+        update_option('airepm_initial_setup_completed', current_time('mysql'));
+    }
+
+    private function get_setup_settings() {
+        $defaults = array(
+            'business_type' => 'factory',
+            'company_name' => get_bloginfo('name') ? get_bloginfo('name') : 'AI 부동산',
+            'main_color' => '#1f7a4d',
+            'region' => '창원·김해·부산',
+        );
+
+        $saved = get_option('airepm_setup_settings', array());
+        return wp_parse_args(is_array($saved) ? $saved : array(), $defaults);
+    }
+
+    private function sanitize_setup_settings($source) {
+        $business_type = isset($source['business_type']) ? sanitize_key(wp_unslash($source['business_type'])) : 'factory';
+        $allowed_types = array('factory', 'commercial', 'land', 'local');
+        if (!in_array($business_type, $allowed_types, true)) {
+            $business_type = 'factory';
+        }
+
+        $main_color = isset($source['main_color']) ? sanitize_hex_color(wp_unslash($source['main_color'])) : '#1f7a4d';
+        if (!$main_color) {
+            $main_color = '#1f7a4d';
+        }
+
+        return array(
+            'business_type' => $business_type,
+            'company_name' => isset($source['company_name']) ? sanitize_text_field(wp_unslash($source['company_name'])) : 'AI 부동산',
+            'main_color' => $main_color,
+            'region' => isset($source['region']) ? sanitize_text_field(wp_unslash($source['region'])) : '창원·김해·부산',
+        );
+    }
+
+    private function get_business_type_label($business_type) {
+        $labels = array(
+            'factory' => '공장·창고 전문 부동산',
+            'commercial' => '상업용 부동산',
+            'land' => '토지·개발 부지',
+            'local' => '지역 종합 부동산',
+        );
+
+        return isset($labels[$business_type]) ? $labels[$business_type] : $labels['factory'];
+    }
+
+    private function create_homepage($settings) {
+        $existing_page_id = (int) get_option('airepm_homepage_id', 0);
+        if ($existing_page_id && get_post($existing_page_id)) {
+            return $existing_page_id;
+        }
+
+        $existing_page = $this->find_page_by_title('홈');
+        if ($existing_page) {
+            update_option('airepm_homepage_id', $existing_page->ID);
+            update_option('page_on_front', $existing_page->ID);
+            update_option('show_on_front', 'page');
+            return $existing_page->ID;
+        }
+
+        $page_id = wp_insert_post(array(
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => '홈',
+            'post_name' => 'home',
+            'post_content' => $this->build_homepage_content($settings),
+        ), true);
+
+        if (!is_wp_error($page_id)) {
+            update_option('airepm_homepage_id', (int) $page_id);
+            update_option('page_on_front', (int) $page_id);
+            update_option('show_on_front', 'page');
+            update_post_meta($page_id, '_airepm_generated_page', 'homepage');
+            return (int) $page_id;
+        }
+
+        return 0;
+    }
+
+    private function build_homepage_content($settings) {
+        $company = $settings['company_name'];
+        $region = $settings['region'];
+        $business_label = $this->get_business_type_label($settings['business_type']);
+        $color = $settings['main_color'];
+
+        return '<!-- AI Real Estate Elementor-ready homepage -->'
+            . '<section class="airepm-site-section airepm-site-hero" style="--airepm-main-color:' . esc_attr($color) . ';">'
+            . '<div><span class="airepm-site-eyebrow">' . esc_html($region) . ' 부동산 파트너</span><h1>' . esc_html($company) . '</h1><p>' . esc_html($business_label) . '를 위한 맞춤 매물 상담과 빠른 현장 연결을 제공합니다.</p><a class="airepm-site-button" href="#property-inquiry">상담 문의하기</a></div>'
+            . '<div class="airepm-site-panel"><strong>추천 매물 검색</strong><p>조건에 맞는 매물을 바로 확인하세요.</p>[property_search]</div>'
+            . '</section>'
+            . '<section class="airepm-site-section"><h2>추천 매물</h2>[property_list]</section>'
+            . '<section class="airepm-site-section airepm-site-columns"><div><h2>지역 기반 매물 분석</h2><p>' . esc_html($region) . ' 주요 권역의 입지, 접근성, 업종 적합도를 함께 검토합니다.</p></div><div>[property_map]</div></section>'
+            . '<section id="property-inquiry" class="airepm-site-section airepm-site-cta"><h2>원하는 조건을 알려주세요</h2><p>예산, 면적, 지역, 입주 가능일을 남겨주시면 적합한 매물을 선별해 안내드립니다.</p></section>';
+    }
+
+    private function create_main_menu($settings, $homepage_id) {
+        $menu_id = (int) get_option('airepm_menu_id', 0);
+        $menu = $menu_id ? wp_get_nav_menu_object($menu_id) : null;
+
+        if (!$menu) {
+            $existing_menu = wp_get_nav_menu_object('AI 부동산 기본 메뉴');
+            if ($existing_menu) {
+                $menu_id = (int) $existing_menu->term_id;
+            } else {
+                $created_menu = wp_create_nav_menu('AI 부동산 기본 메뉴');
+                $menu_id = is_wp_error($created_menu) ? 0 : (int) $created_menu;
+            }
+
+            if ($menu_id) {
+                update_option('airepm_menu_id', $menu_id);
+            }
+        }
+
+        if (!$menu_id) {
+            return 0;
+        }
+
+        $property_page_id = $this->create_default_property_page();
+        $items = wp_get_nav_menu_items($menu_id);
+        if (empty($items)) {
+            if ($homepage_id) {
+                wp_update_nav_menu_item($menu_id, 0, array(
+                    'menu-item-title' => '홈',
+                    'menu-item-object-id' => $homepage_id,
+                    'menu-item-object' => 'page',
+                    'menu-item-type' => 'post_type',
+                    'menu-item-status' => 'publish',
+                ));
+            }
+
+            if ($property_page_id) {
+                wp_update_nav_menu_item($menu_id, 0, array(
+                    'menu-item-title' => '매물 검색',
+                    'menu-item-object-id' => $property_page_id,
+                    'menu-item-object' => 'page',
+                    'menu-item-type' => 'post_type',
+                    'menu-item-status' => 'publish',
+                ));
+            }
+
+            wp_update_nav_menu_item($menu_id, 0, array(
+                'menu-item-title' => '지역 정보',
+                'menu-item-url' => home_url('/region/' . rawurlencode($settings['region']) . '/'),
+                'menu-item-status' => 'publish',
+            ));
+
+            wp_update_nav_menu_item($menu_id, 0, array(
+                'menu-item-title' => '상담 문의',
+                'menu-item-url' => home_url('/#property-inquiry'),
+                'menu-item-status' => 'publish',
+            ));
+        }
+
+        $locations = get_theme_mod('nav_menu_locations');
+        if (is_array($locations)) {
+            foreach (array('primary', 'menu-1', 'main', 'header') as $location_key) {
+                if (array_key_exists($location_key, $locations) && empty($locations[$location_key])) {
+                    $locations[$location_key] = $menu_id;
+                    set_theme_mod('nav_menu_locations', $locations);
+                    break;
+                }
+            }
+        }
+
+        return $menu_id;
+    }
+
+    private function generate_seo_settings($settings, $homepage_id) {
+        $seo_title = sprintf('%s | %s %s 매물 전문', $settings['company_name'], $settings['region'], $this->get_business_type_label($settings['business_type']));
+        update_option('airepm_seo_title', $seo_title);
+
+        if ($homepage_id) {
+            update_post_meta($homepage_id, '_airepm_seo_title', $seo_title);
+            update_post_meta($homepage_id, '_yoast_wpseo_title', $seo_title);
+            update_post_meta($homepage_id, 'rank_math_title', $seo_title);
+        }
+
+        return $seo_title;
+    }
+
+    private function create_sample_blog_posts($settings) {
+        $posts = array(
+            array(
+                'key' => 'region-guide',
+                'title' => $settings['region'] . ' 공장·창고 입지 선택 가이드',
+                'content' => '사업장 이전이나 확장을 준비할 때는 도로 접근성, 전력 용량, 주차와 하역 동선을 함께 확인해야 합니다. ' . $settings['region'] . ' 권역은 업종별로 적합한 입지가 다르므로 예산과 사용 목적을 먼저 정리하는 것이 좋습니다.',
+            ),
+            array(
+                'key' => 'lease-checklist',
+                'title' => '상업용 부동산 임대 전 확인해야 할 조건',
+                'content' => '임대 계약 전에는 보증금과 월세뿐 아니라 관리비, 원상복구 범위, 용도 제한, 입주 가능일을 확인해야 합니다. 현장 방문 시 차량 진입로와 주변 민원 가능성도 함께 점검하세요.',
+            ),
+            array(
+                'key' => 'factory-power',
+                'title' => '공장 매물에서 전력 용량이 중요한 이유',
+                'content' => '제조 설비를 운영하는 공장은 전력 용량이 생산성과 직결됩니다. 계약 전 기존 전력 용량, 증설 가능성, 전기 인입 위치를 확인하면 입주 후 추가 비용을 줄일 수 있습니다.',
+            ),
+        );
+
+        foreach ($posts as $post) {
+            if ($this->sample_blog_post_exists($post['key'])) {
+                continue;
+            }
+
+            $post_id = wp_insert_post(array(
+                'post_type' => 'post',
+                'post_status' => 'publish',
+                'post_title' => $post['title'],
+                'post_content' => $post['content'],
+                'post_excerpt' => wp_trim_words($post['content'], 24),
+            ), true);
+
+            if (!is_wp_error($post_id)) {
+                update_post_meta($post_id, '_airepm_sample_blog', '1');
+                update_post_meta($post_id, '_airepm_sample_blog_key', $post['key']);
+            }
+        }
+    }
+
+    private function sample_blog_post_exists($sample_key) {
+        $query = new WP_Query(array(
+            'post_type' => 'post',
+            'post_status' => 'any',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'meta_query' => array(
+                array(
+                    'key' => '_airepm_sample_blog_key',
+                    'value' => $sample_key,
+                    'compare' => '=',
+                ),
+            ),
+        ));
+
+        $exists = $query->have_posts();
+        wp_reset_postdata();
+
+        return $exists;
+    }
+
+    private function create_default_property_page() {
+        $existing_page_id = (int) get_option('airepm_setup_page_id', 0);
+        if ($existing_page_id && get_post($existing_page_id)) {
+            return $existing_page_id;
+        }
+
+        $existing_page = $this->find_page_by_title('매물 상세');
+        if ($existing_page) {
+            update_option('airepm_setup_page_id', $existing_page->ID);
+            return $existing_page->ID;
+        }
+
+        $page_id = wp_insert_post(array(
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => '매물 상세',
+            'post_content' => "[property_search]\n\n[property_list]\n\n[property_map]",
+            'post_name' => 'property-search',
+        ), true);
+
+        if (!is_wp_error($page_id)) {
+            update_option('airepm_setup_page_id', (int) $page_id);
+            return (int) $page_id;
+        }
+
+        return 0;
+    }
+
+    private function find_page_by_title($title) {
+        $query = new WP_Query(array(
+            'post_type' => 'page',
+            'post_status' => array('publish', 'draft', 'private'),
+            'title' => $title,
+            'posts_per_page' => 1,
+            'no_found_rows' => true,
+        ));
+
+        if ($query->have_posts()) {
+            $page = $query->posts[0];
+            wp_reset_postdata();
+            return $page;
+        }
+
+        wp_reset_postdata();
+        return null;
+    }
+
+    private function count_sample_properties() {
+        $query = new WP_Query(array(
+            'post_type' => 'property',
+            'post_status' => 'any',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'meta_query' => array(
+                array(
+                    'key' => '_airepm_sample_property',
+                    'value' => '1',
+                    'compare' => '=',
+                ),
+            ),
+        ));
+
+        $count = (int) $query->post_count;
+        wp_reset_postdata();
+
+        return $count;
+    }
+
+    private function create_sample_properties() {
+        $samples = array(
+            array(
+                'sample_key' => 'changwon-factory',
+                'property_title' => '창원 성산구 즉시 입주 공장',
+                'province' => '경남',
+                'city' => '창원시',
+                'district' => '성산구',
+                'town' => '상남동',
+                'transaction_type' => 'rent',
+                'property_type' => 'factory',
+                'area' => '420',
+                'price' => '3500000',
+                'description' => '창원 국가산단 접근성이 좋은 공장 매물입니다. 전력 사용량이 안정적이고 물류 차량 진입이 편리해 제조업, 조립업, 보관업에 적합합니다.',
+            ),
+            array(
+                'sample_key' => 'gimhae-warehouse',
+                'property_title' => '김해 진영읍 물류 창고',
+                'province' => '경남',
+                'city' => '김해시',
+                'district' => '',
+                'town' => '진영읍',
+                'transaction_type' => 'rent',
+                'property_type' => 'warehouse',
+                'area' => '680',
+                'price' => '4800000',
+                'description' => '고속도로 접근이 편리한 창고형 매물입니다. 넓은 진입로와 적재 공간을 갖춰 물류, 유통, 보관 목적에 적합합니다.',
+            ),
+            array(
+                'sample_key' => 'busan-commercial',
+                'property_title' => '부산 강서구 상업용 부지',
+                'province' => '부산',
+                'city' => '부산시',
+                'district' => '강서구',
+                'town' => '명지동',
+                'transaction_type' => 'sale',
+                'property_type' => 'commercial',
+                'area' => '920',
+                'price' => '1250000000',
+                'description' => '신도시 배후 수요와 도로 접근성을 함께 갖춘 상업용 부지입니다. 근린생활시설, 전시장, 업무시설 검토에 적합합니다.',
+            ),
+        );
+
+        foreach ($samples as $sample) {
+            if ($this->sample_property_exists($sample['sample_key'])) {
+                continue;
+            }
+
+            $post_id = wp_insert_post(array(
+                'post_type' => 'property',
+                'post_status' => 'publish',
+                'post_title' => $sample['property_title'],
+                'post_content' => $sample['description'],
+                'post_excerpt' => wp_trim_words($sample['description'], 24),
+            ), true);
+
+            if (is_wp_error($post_id)) {
+                continue;
+            }
+
+            foreach ($sample as $key => $value) {
+                if ($key === 'sample_key') {
+                    continue;
+                }
+                update_post_meta($post_id, $key, $value);
+            }
+
+            update_post_meta($post_id, '_airepm_sample_property', '1');
+            update_post_meta($post_id, '_airepm_sample_key', $sample['sample_key']);
+            update_post_meta($post_id, 'region', trim($sample['city'] . ' ' . $sample['district'] . ' ' . $sample['town']));
+            update_post_meta($post_id, 'featured_image', '');
+        }
+    }
+
+    private function sample_property_exists($sample_key) {
+        $query = new WP_Query(array(
+            'post_type' => 'property',
+            'post_status' => 'any',
+            'posts_per_page' => 1,
+            'fields' => 'ids',
+            'meta_query' => array(
+                array(
+                    'key' => '_airepm_sample_key',
+                    'value' => $sample_key,
+                    'compare' => '=',
+                ),
+            ),
+        ));
+
+        $exists = $query->have_posts();
+        wp_reset_postdata();
+
+        return $exists;
     }
 
     public function register_query_vars($vars) {
@@ -146,6 +704,11 @@ final class AI_Real_Estate_Property_Manager {
                 $acf_field['wrapper'] = array('width' => '100');
             }
 
+            if ($field['type'] === 'date') {
+                $acf_field['display_format'] = 'Y-m-d';
+                $acf_field['return_format'] = 'Y-m-d';
+            }
+
             if ($field['type'] === 'checkbox') {
                 $acf_field['message'] = '예';
                 $acf_field['ui'] = 1;
@@ -193,7 +756,7 @@ final class AI_Real_Estate_Property_Manager {
 
     private function get_field_definitions() {
         return array(
-            'property_title' => array('label' => '매물명', 'type' => 'text'),
+            'property_title' => array('label' => '제목', 'type' => 'text'),
             'transaction_type' => array(
                 'label' => '거래유형',
                 'type' => 'select',
@@ -202,7 +765,7 @@ final class AI_Real_Estate_Property_Manager {
             'property_type' => array(
                 'label' => '매물유형',
                 'type' => 'select',
-                'options' => array('factory' => '공장', 'warehouse' => '창고', 'land' => '토지'),
+                'options' => array('factory' => '공장', 'warehouse' => '창고', 'land' => '토지', 'commercial' => '상업용'),
             ),
             'province' => array('label' => '도·광역시', 'type' => 'text'),
             'city' => array('label' => '시', 'type' => 'text'),
@@ -218,7 +781,8 @@ final class AI_Real_Estate_Property_Manager {
             'ceiling_height' => array('label' => '층고', 'type' => 'text'),
             'parking' => array('label' => '주차', 'type' => 'text'),
             'road_width' => array('label' => '도로 폭', 'type' => 'text'),
-            'move_in_date' => array('label' => '입주 가능일', 'type' => 'date'),
+            'available_date' => array('label' => '입주/사용 가능일', 'type' => 'date'),
+            'move_in_date' => array('label' => '기존 입주 가능일', 'type' => 'date'),
             'description' => array('label' => '설명', 'type' => 'textarea'),
             'latitude' => array('label' => '위도', 'type' => 'text'),
             'longitude' => array('label' => '경도', 'type' => 'text'),
@@ -297,6 +861,15 @@ final class AI_Real_Estate_Property_Manager {
         }
 
         $property_title = isset($_POST['property_title']) ? sanitize_text_field(wp_unslash($_POST['property_title'])) : '';
+        $available_date = isset($_POST['available_date']) ? sanitize_text_field(wp_unslash($_POST['available_date'])) : '';
+        $move_in_date = isset($_POST['move_in_date']) ? sanitize_text_field(wp_unslash($_POST['move_in_date'])) : '';
+
+        if ($available_date && !$move_in_date) {
+            update_post_meta($post_id, 'move_in_date', $available_date);
+        } elseif ($move_in_date && !$available_date) {
+            update_post_meta($post_id, 'available_date', $move_in_date);
+        }
+
         if ($property_title && $post->post_title !== $property_title) {
             $this->saving_property_title = true;
             wp_update_post(array('ID' => $post_id, 'post_title' => $property_title));
@@ -311,7 +884,6 @@ final class AI_Real_Estate_Property_Manager {
     public function render_property_search_shortcode($atts = array()) {
         ob_start();
         echo $this->render_search_form();
-        echo $this->render_property_list();
         return ob_get_clean();
     }
 
@@ -322,7 +894,6 @@ final class AI_Real_Estate_Property_Manager {
     public function render_property_location_search_shortcode($atts = array()) {
         ob_start();
         echo $this->render_location_search_form();
-        echo $this->render_property_list();
         return ob_get_clean();
     }
 
@@ -385,7 +956,7 @@ final class AI_Real_Estate_Property_Manager {
         echo '<div class="airepm-region-archive">';
         echo '<h1>' . esc_html($region) . ' 매물</h1>';
         echo $this->render_search_form();
-        echo $this->render_property_list();
+        echo do_shortcode('[property_list]');
         echo '</div>';
         return ob_get_clean();
     }
@@ -454,6 +1025,7 @@ final class AI_Real_Estate_Property_Manager {
                     <option value="factory" <?php selected($filters['property_type'], 'factory'); ?>>공장</option>
                     <option value="warehouse" <?php selected($filters['property_type'], 'warehouse'); ?>>창고</option>
                     <option value="land" <?php selected($filters['property_type'], 'land'); ?>>토지</option>
+                    <option value="commercial" <?php selected($filters['property_type'], 'commercial'); ?>>상업용</option>
                 </select>
             </div>
             <div>
@@ -644,21 +1216,35 @@ final class AI_Real_Estate_Property_Manager {
         $query_args = array(
             'post_type' => 'property',
             'post_status' => 'publish',
-            'posts_per_page' => 12,
+            'posts_per_page' => 6,
             'meta_query' => $this->build_meta_query($filters),
         );
         $query = new WP_Query($query_args);
         ob_start();
+        echo '<div class="airepm-property-list">';
+        $rendered_count = 0;
+        $query_had_posts = $query->post_count > 0;
         if ($query->have_posts()) {
             echo '<div class="airepm-property-grid">';
             while ($query->have_posts()) {
                 $query->the_post();
-                echo $this->render_property_card(get_the_ID());
+                $post_id = get_the_ID();
+                if (get_post_status($post_id) !== 'publish') {
+                    continue;
+                }
+                if (in_array($post_id, $this->rendered_property_ids, true)) {
+                    continue;
+                }
+                $this->rendered_property_ids[] = $post_id;
+                $rendered_count++;
+                echo $this->render_property_card($post_id);
             }
             echo '</div>';
-        } else {
+        }
+        if ($rendered_count === 0 && !$query_had_posts) {
             echo '<div class="airepm-empty">등록된 매물이 없습니다.</div>';
         }
+        echo '</div>';
         wp_reset_postdata();
         return ob_get_clean();
     }
@@ -700,7 +1286,7 @@ final class AI_Real_Estate_Property_Manager {
         $price = get_post_meta($post_id, 'price', true);
         $area = get_post_meta($post_id, 'area', true);
         $transaction_labels = array('sale' => '매매', 'rent' => '임대');
-        $property_type_labels = array('factory' => '공장', 'warehouse' => '창고', 'land' => '토지');
+        $property_type_labels = array('factory' => '공장', 'warehouse' => '창고', 'land' => '토지', 'commercial' => '상업용');
 
         ob_start();
         ?>
@@ -755,6 +1341,7 @@ AI_Real_Estate_Property_Manager::instance();
 register_activation_hook(__FILE__, function () {
     AI_Real_Estate_Property_Manager::instance()->register_property_post_type();
     AI_Real_Estate_Property_Manager::instance()->register_region_rewrite_rules();
+    AI_Real_Estate_Property_Manager::instance()->run_initial_setup();
     flush_rewrite_rules();
 });
 

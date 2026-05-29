@@ -235,6 +235,11 @@ export function buildGeneratedSiteData({
       headline: readString(preview.ctaTitle) || "조건을 남기면 맞춤 매물을 선별해드립니다",
       body: readString(strategy.businessGoal),
     },
+    assets: {
+      heroImage: readString(design.heroImageAsset) || undefined,
+      logo: readString(design.logoAsset) || undefined,
+      brandImage: readString(design.brandImageAsset) || undefined,
+    },
     sections: siteSections,
     trustItems: [
       readString(strategy.positioning),

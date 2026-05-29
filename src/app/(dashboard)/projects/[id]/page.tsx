@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, MapPin, Home, ArrowLeftRight, Users, FileText, Eye, CheckCircle2, Download } from "lucide-react";
+import { ChevronLeft, MapPin, Home, ArrowLeftRight, Users, FileText, Eye, CheckCircle2, Download, Server } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
 import { Badge } from "@/components/ui/badge";
 import { MultiAgentWorkflowPanel } from "@/components/workflow/multi-agent-workflow-panel";
+import { WordPressDeploymentPanel } from "@/components/projects/wordpress-deployment-panel";
 import type { ProjectConfig } from "@/config/project-options";
 import type { GeneratedContent } from "@/types/generation.types";
 import type { WorkflowSnapshot } from "@/types/workflow.types";
 import { WORKFLOW_STEPS } from "@/config/workflow-steps";
+import { WordPressDeploymentService } from "@/services/wordpress-deployment.service";
+import type { WordPressDeploymentSnapshot } from "@/types/wordpress-deployment.types";
+import type { Tables } from "@/types/database.types";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -25,6 +29,8 @@ const STATUS_MAP = {
 } as const;
 
 const CONFIG_FIELDS = [
+  { key: "deploymentMode", label: "설치 방식", icon: Server },
+  { key: "realEstateType",  label: "부동산 세부 유형", icon: Home },
   { key: "region",          label: "지역",       icon: MapPin         },
   { key: "propertyType",    label: "매물 유형",  icon: Home           },
   { key: "transactionType", label: "거래 유형",  icon: ArrowLeftRight },
@@ -40,6 +46,14 @@ function formatDate(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isAgencyRun(run: Tables<"generation_runs">) {
+  return isRecord(run.metadata) && run.metadata.workflowKind === "real_estate_agency";
 }
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
@@ -61,10 +75,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
   const initialContent = (generatedContent as GeneratedContent | undefined) ?? undefined;
   const status = STATUS_MAP[project.status] ?? STATUS_MAP.draft;
   let initialWorkflow: WorkflowSnapshot = { run: null, steps: [], artifacts: [] };
+  let deploymentSnapshot: WordPressDeploymentSnapshot = { site: null, deployment: null, steps: [] };
 
   try {
     const workflowService = new GenerationWorkflowService(supabase);
-    const latestRun = await workflowService.getLatestProjectRun(project.id);
+    const runs = await workflowService.getProjectRuns(project.id);
+    const latestRun = runs.find((run) => !isAgencyRun(run)) ?? null;
     if (latestRun) {
       const [steps, artifacts] = await Promise.all([
         workflowService.getRunSteps(latestRun.id),
@@ -74,6 +90,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     }
   } catch {
     initialWorkflow = { run: null, steps: [], artifacts: [] };
+  }
+
+  try {
+    const deploymentService = new WordPressDeploymentService(supabase);
+    deploymentSnapshot = await deploymentService.getProjectDeploymentSnapshot(project.id);
+  } catch {
+    deploymentSnapshot = { site: null, deployment: null, steps: [] };
   }
 
   const completedSteps = initialWorkflow.steps.filter((step) => step.status === "completed").length;
@@ -174,6 +197,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           initialWorkflow={initialWorkflow}
           config={cfg}
           initialContent={initialContent}
+        />
+
+        <WordPressDeploymentPanel
+          projectId={project.id}
+          projectName={project.name}
+          userEmail={user.email}
+          initialSite={deploymentSnapshot.site}
+          initialDeployment={deploymentSnapshot.deployment}
+          initialSteps={deploymentSnapshot.steps}
         />
       </div>
     </div>
