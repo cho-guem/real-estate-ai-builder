@@ -150,8 +150,9 @@ const agent = new https.Agent({
 const wpResponse = await axios.post(
   `${siteUrl}/wp-json/wp/v2/pages`,
   {
-    title: generatedSiteData.hero.title,
-    content: generatedSiteData.hero.description,
+    
+   title: "홈페이지",
+   content: "홈페이지 내용입니다.",
     status: "publish",
   },
   {

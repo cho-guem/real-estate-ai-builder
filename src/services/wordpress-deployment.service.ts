@@ -1,5 +1,5 @@
 import { SSHDeployer } from "@/lib/ssh-deployer";
-import { Client } from "ssh2";
+
 import { WordPressDeploymentRepository } from "@/repositories/wordpress-deployment.repository";
 import { WordPressDeploymentStepRepository } from "@/repositories/wordpress-deployment-step.repository";
 import { WordPressSiteRepository } from "@/repositories/wordpress-site.repository";
@@ -206,9 +206,7 @@ console.log("[SERVER] 워드프레스 설치 완료");
   "completed"
 );
 
-const sshResult = await this.runSSHCommand("pwd");
 
-console.log("SSH RESULT:", sshResult);
 
 await this.stepRepo.updateStatusByStepKey(
   deployment.id,
@@ -216,9 +214,7 @@ await this.stepRepo.updateStatusByStepKey(
   "completed"
 );
  
-const serverTest = await this.runSSHCommand("pwd");
 
-console.log("SERVER TEST:", serverTest);
 
     return { site, deployment, steps, plan };
   }
@@ -230,46 +226,7 @@ console.log("SERVER TEST:", serverTest);
     });
   }
 
-  private async runSSHCommand(command: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-
-    let output = "";
-
-    conn
-      .on("ready", () => {
-        conn.exec(command, (err, stream) => {
-          if (err) {
-            conn.end();
-            reject(err);
-            return;
-          }
-
-          stream
-            .on("close", () => {
-              conn.end();
-              resolve(output);
-            })
-            .on("data", (data: Buffer) => {
-              output += data.toString();
-            });
-
-          stream.stderr.on("data", (data: Buffer) => {
-            output += data.toString();
-          });
-        });
-      })
-      .on("error", (err) => {
-        reject(err);
-      })
-      .connect({
-        host: process.env.DEPLOYMENT_SERVER_HOST!,
-        port: Number(process.env.DEPLOYMENT_SERVER_PORT || 22),
-        username: process.env.DEPLOYMENT_SERVER_USER!,
-        password: process.env.DEPLOYMENT_SERVER_PASSWORD!,
-      });
-  });
-}
+  
 
   buildProvisioningPlan(
     project: Tables<"projects">,
