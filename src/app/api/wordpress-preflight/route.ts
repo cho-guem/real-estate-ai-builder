@@ -70,22 +70,18 @@ export async function POST(request: Request) {
       message: "기본 주소를 자동으로 만들 준비가 되었습니다.",
     });
   }
-  checks.push(
-    await checkPathExists(
-      "plugin_zip",
-      "홈페이지 기능 파일 준비",
-      config.pluginZipPath,
-      "홈페이지 기능 파일 경로를 설정해주세요."
-    )
-  );
-  checks.push(
-    await checkPathExists(
-      "elementor_template",
-      "디자인 파일 준비",
-      config.elementorTemplatePath,
-      "홈페이지 디자인 파일 경로를 설정해주세요."
-    )
-  );
+  checks.push(checkRemotePathConfigured(
+    "plugin_zip",
+    "홈페이지 기능 파일 준비",
+    config.pluginZipPath,
+    "홈페이지 기능 파일 경로를 설정해주세요."
+  ));
+  checks.push(checkRemotePathConfigured(
+    "elementor_template",
+    "디자인 파일 준비",
+    config.elementorTemplatePath,
+    "홈페이지 디자인 파일 경로를 설정해주세요."
+  ));
 
   return NextResponse.json({
     passed: checks.every((check) => check.status !== "error"),
@@ -377,6 +373,18 @@ async function checkManagedVolumeWritable(volumePath: string): Promise<Preflight
       "홈페이지 저장 공간 권한을 확인해주세요."
     );
   }
+}
+
+function checkRemotePathConfigured(
+  key: string,
+  label: string,
+  configuredPath: string,
+  help?: string
+): PreflightCheck {
+  if (!configuredPath) {
+    return { key, label, status: "error", passed: false, message: "필요한 준비 정보가 아직 설정되지 않았습니다.", help };
+  }
+  return { key, label, status: "success", passed: true, message: `경로 설정 완료: ${configuredPath}` };
 }
 
 function failedCheck(
