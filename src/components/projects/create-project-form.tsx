@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ChevronDown, Loader2, Server, Wrench } from "lucide-react";
-import { createProjectAction, type ProjectActionState } from "@/app/actions/project.actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,11 +100,15 @@ function Field({
 // Main form
 // ─────────────────────────────────────────────
 
-const initialState: ProjectActionState = {};
+type ProjectFormState = {
+  error?: string;
+  fieldErrors?: Partial<Record<string, string>>;
+};
 
 export function CreateProjectForm() {
   const router = useRouter();
-  const [state, action, pending] = useActionState(createProjectAction, initialState);
+  const [state, setState] = useState<ProjectFormState>({});
+  const [pending, setPending] = useState(false);
   const [deploymentMode, setDeploymentMode] = useState<"managed_hosting" | "existing_hosting">("managed_hosting");
   const [industry, setIndustry] = useState<Industry>("real_estate");
   const [realEstateType, setRealEstateType] =
@@ -113,8 +116,73 @@ export function CreateProjectForm() {
   const fe = state.fieldErrors ?? {};
   const selectedGuide = REAL_ESTATE_SPECIALTY_GUIDES[realEstateType];
 
+  async function submitProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setState({});
+
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          industry,
+          realEstateType,
+          propertySpecialty: realEstateType,
+          propertyType: mapSpecialtyToPropertyType(realEstateType),
+          companyName: String(formData.get("name") ?? ""),
+          name: String(formData.get("name") ?? ""),
+          region: String(formData.get("region") ?? ""),
+          transactionType: String(formData.get("transactionType") ?? ""),
+          targetAudience: String(formData.get("targetAudience") ?? ""),
+          purpose: String(formData.get("purpose") ?? ""),
+          deploymentMode,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const fieldErrors = payload.fieldErrors
+          ? {
+              name: payload.fieldErrors.name?.[0],
+              region: payload.fieldErrors.region?.[0],
+              industry: payload.fieldErrors.industry?.[0],
+              realEstateType:
+                payload.fieldErrors.realEstateType?.[0] ?? payload.fieldErrors.propertySpecialty?.[0],
+              propertyType: payload.fieldErrors.propertyType?.[0],
+              transactionType: payload.fieldErrors.transactionType?.[0],
+              targetAudience: payload.fieldErrors.targetAudience?.[0],
+              purpose: payload.fieldErrors.purpose?.[0],
+              deploymentMode: payload.fieldErrors.deploymentMode?.[0],
+            }
+          : undefined;
+
+        setState({
+          error: payload.error ?? "웹사이트 생성 요청에 실패했습니다.",
+          fieldErrors,
+        });
+        return;
+      }
+
+      if (payload.project?.id) {
+        router.push(payload.nextStep ?? `/projects/${payload.project.id}?startWorkflow=1`);
+        return;
+      }
+
+      router.push("/projects");
+    } catch (error) {
+      setState({
+        error: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <form action={action} className="space-y-6">
+    <form onSubmit={submitProject} className="space-y-6">
       {state.error && !Object.values(fe).some(Boolean) && (
         <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {state.error}

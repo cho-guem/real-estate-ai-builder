@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, MapPin, Home, ArrowLeftRight, Users, FileText, Eye, CheckCircle2, Download, Server } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestDbAndUser } from "@/lib/supabase/request-user";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import type { Tables } from "@/types/database.types";
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ startWorkflow?: string }>;
 }
 
 export const metadata: Metadata = { title: "프로젝트 상세" };
@@ -56,13 +57,11 @@ function isAgencyRun(run: Tables<"generation_runs">) {
   return isRecord(run.metadata) && run.metadata.workflowKind === "real_estate_agency";
 }
 
-export default async function ProjectPage({ params }: ProjectPageProps) {
+export default async function ProjectPage({ params, searchParams }: ProjectPageProps) {
   const { id } = await params;
+  const query = await searchParams;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) notFound();
-
+  const { db: supabase, user } = await getRequestDbAndUser();
   const service = new ProjectService(supabase);
   const project = await service.getProjectById(id);
   if (!project || project.user_id !== user.id) notFound();
@@ -197,6 +196,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
           initialWorkflow={initialWorkflow}
           config={cfg}
           initialContent={initialContent}
+          autoStart={query?.startWorkflow === "1"}
         />
 
         <WordPressDeploymentPanel

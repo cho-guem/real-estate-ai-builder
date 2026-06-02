@@ -1517,11 +1517,13 @@ export function MultiAgentWorkflowPanel({
   initialWorkflow,
   config,
   initialContent,
+  autoStart = false,
 }: {
   projectId: string;
   initialWorkflow: WorkflowSnapshot;
   config: ProjectConfig;
   initialContent?: GeneratedContent;
+  autoStart?: boolean;
 }) {
   const [workflow, setWorkflow] = useState(initialWorkflow);
   const [isStarting, setIsStarting] = useState(false);
@@ -1569,7 +1571,7 @@ export function MultiAgentWorkflowPanel({
     setWorkflow(data.workflow);
   }, [projectId]);
 
-  async function startMockWorkflow() {
+  const startMockWorkflow = useCallback(async () => {
     setIsStarting(true);
     setError("");
     try {
@@ -1585,7 +1587,12 @@ export function MultiAgentWorkflowPanel({
     } finally {
       setIsStarting(false);
     }
-  }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!autoStart || workflow.run || isStarting) return;
+    void startMockWorkflow();
+  }, [autoStart, workflow.run, isStarting, startMockWorkflow]);
 
   async function runWorkflowAction(action: WorkflowAction) {
     setError("");
@@ -1634,7 +1641,7 @@ export function MultiAgentWorkflowPanel({
               <RefreshCw className="h-3.5 w-3.5" />
               새로고침
             </Button>
-            <Button onClick={startMockWorkflow} disabled={isStarting} className="gap-1.5">
+            <Button onClick={startMockWorkflow} disabled={isStarting || Boolean(workflow.run)} className="gap-1.5">
               {isStarting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
               목업 워크플로우 시작
             </Button>

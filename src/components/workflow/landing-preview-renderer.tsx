@@ -146,47 +146,20 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
 
         <div className={cn("mx-auto overflow-hidden rounded-2xl border bg-white shadow-sm", wrapperWidth)}>
           <div
-            className="text-slate-900"
-            style={{
-              backgroundColor: site.colors.surface,
-              fontFamily: site.typography.fontFamily,
-              fontSize: site.typography.styleId === "compact-modern" ? "14px" : undefined,
-            }}
+            className={cn("text-slate-900", site.typography.styleId === "compact-modern" && "text-[15px]")}
+            style={{ backgroundColor: site.colors.surface }}
           >
-            <header
-              className="flex items-center justify-between gap-4 border-b px-5 py-4"
-              style={{
-                backgroundColor:
-                  site.typography.styleId === "editorial-serif" ? site.colors.primary : "rgba(255,255,255,0.92)",
-                color: site.typography.styleId === "editorial-serif" ? "#fff" : undefined,
-              }}
-            >
+            <header className="flex items-center justify-between gap-4 border-b bg-white/85 px-5 py-4">
               <div className="flex items-center gap-3">
                 {site.assets?.logo && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={site.assets.logo} alt={site.footer.brandName} className="h-9 w-9 rounded-lg object-cover" />
                 )}
                 <div>
-                  <p
-                    className="text-sm font-bold"
-                    style={{
-                      color:
-                        site.typography.styleId === "editorial-serif"
-                          ? "#fff"
-                          : site.colors.primary,
-                      fontFamily: site.typography.fontFamily,
-                    }}
-                  >
+                  <p className="text-sm font-bold" style={{ color: site.colors.primary }}>
                     {site.footer.brandName}
                   </p>
-                  <p
-                    className="text-xs"
-                    style={{
-                      color: site.typography.styleId === "editorial-serif" ? "rgba(255,255,255,0.7)" : "#64748b",
-                    }}
-                  >
-                    {site.layout.name}
-                  </p>
+                  <p className="text-xs text-slate-500">{site.layout.name}</p>
                 </div>
               </div>
               {!compact && (
@@ -202,82 +175,29 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
               </Button>
             </header>
 
-            <div
-              className={cn(
-                "grid gap-6 px-5 py-8",
-                compact ? "grid-cols-1" : "grid-cols-[1.1fr_0.9fr]",
-                site.layout.styleId === "listing-first" && !compact && "grid-cols-[0.9fr_1.1fr]",
-                site.layout.styleId === "advisory-report" && !compact && "grid-cols-1"
-              )}
-              style={
-                site.layout.styleId === "advisory-report"
-                  ? { backgroundColor: site.colors.primary, color: "#fff", padding: "48px 24px" }
-                  : undefined
-              }
-            >
+            <div className={cn("grid gap-6 px-5 py-8", compact ? "grid-cols-1" : "grid-cols-[1.1fr_0.9fr]", site.layout.styleId === "listing-first" && !compact && "grid-cols-[0.9fr_1.1fr]")}>
               <section className={cn(site.layout.styleId === "listing-first" && !compact && "order-2")}>
-                <Badge
-                  variant="secondary"
-                  style={
-                    site.layout.styleId === "advisory-report"
-                      ? { backgroundColor: site.colors.accent, color: "#fff", border: "none" }
-                      : undefined
-                  }
-                >
-                  {site.seo.title}
-                </Badge>
+                <Badge variant="secondary">{site.seo.title}</Badge>
                 <h1
-                  className={cn("mt-4 font-bold leading-tight", compact ? "text-3xl" : "text-5xl")}
-                  style={{
-                    color:
-                      site.layout.styleId === "advisory-report" ? "#fff" : site.colors.primary,
-                    fontFamily: site.typography.fontFamily,
-                    letterSpacing:
-                      site.typography.styleId === "compact-modern" ? "0.02em" : "-0.01em",
-                  }}
+                  className={cn("mt-4 font-bold leading-tight", compact ? "text-3xl" : "text-5xl", site.typography.styleId === "editorial-serif" && "font-serif")}
+                  style={{ color: site.colors.primary }}
                 >
                   {hero?.title}
                 </h1>
-                <p
-                  className="mt-4 text-base leading-relaxed"
-                  style={{
-                    color: site.layout.styleId === "advisory-report" ? "rgba(255,255,255,0.8)" : "#475569",
-                  }}
-                >
-                  {hero?.body}
-                </p>
+                <p className="mt-4 text-base leading-relaxed text-slate-600">{hero?.body}</p>
                 <div className="mt-6 flex flex-wrap gap-2">
                   <Button style={{ backgroundColor: site.colors.accent }}>{site.cta.primaryLabel}</Button>
-                  <Button
-                    variant="outline"
-                    style={
-                      site.layout.styleId === "advisory-report"
-                        ? { borderColor: "rgba(255,255,255,0.4)", color: "#fff" }
-                        : undefined
-                    }
-                  >
-                    {site.cta.secondaryLabel}
-                  </Button>
+                  <Button variant="outline">{site.cta.secondaryLabel}</Button>
                 </div>
-                {site.layout.styleId === "advisory-report" && !compact && (
-                  <div className="mt-8 flex flex-wrap gap-6">
-                    {site.trustItems.slice(0, 3).map((item, i) => (
-                      <div key={i} className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
-                        <span style={{ color: site.colors.accent, fontWeight: 700 }}>✓ </span>
-                        {item.length > 40 ? `${item.slice(0, 40)}…` : item}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </section>
 
-              <aside className={cn("overflow-hidden rounded-2xl shadow-sm", site.layout.styleId === "advisory-report" ? "hidden" : "bg-white")}>
+              <aside className="overflow-hidden rounded-2xl bg-white shadow-sm">
                 {site.assets?.heroImage && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={site.assets.heroImage} alt="히어로 이미지" className="h-48 w-full object-cover" />
                 )}
                 <div className="p-4">
-                <p className="text-sm font-semibold" style={{ color: site.colors.primary, fontFamily: site.typography.fontFamily }}>
+                <p className="text-sm font-semibold" style={{ color: site.colors.primary }}>
                   생성 사이트 구조
                 </p>
                 <div className="mt-4 space-y-3">
@@ -294,7 +214,7 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
               </aside>
             </div>
 
-            <section className="bg-white px-5 py-7" style={{ display: site.layout.styleId === "advisory-report" ? "none" : undefined }}>
+            <section className="bg-white px-5 py-7">
               <div className={cn("grid gap-3", compact ? "grid-cols-1" : "grid-cols-3")}>
                 {site.trustItems.slice(0, 3).map((item, index) => (
                   <div key={`${item}-${index}`} className="rounded-xl border p-4">
@@ -315,7 +235,7 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
                 <div className="mb-4 flex items-end justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold" style={{ color: site.colors.accent }}>추천 매물</p>
-                    <h2 className="text-2xl font-bold" style={{ color: site.colors.primary, fontFamily: site.typography.fontFamily }}>
+                    <h2 className="text-2xl font-bold" style={{ color: site.colors.primary }}>
                       {site.sections.find((section) => section.type === "properties")?.title}
                     </h2>
                   </div>
@@ -338,7 +258,7 @@ export function LandingPreviewRenderer({ site, projectId }: { site: GeneratedSit
             <section className="bg-white px-5 py-7">
               <div className={cn("grid gap-4", compact ? "grid-cols-1" : "grid-cols-[0.9fr_1.1fr]")}>
                 <div className="rounded-2xl p-5 text-white" style={{ backgroundColor: site.colors.primary }}>
-                  <h2 className="text-2xl font-bold" style={{ fontFamily: site.typography.fontFamily }}>{site.cta.headline}</h2>
+                  <h2 className="text-2xl font-bold">{site.cta.headline}</h2>
                   <p className="mt-3 text-sm leading-relaxed text-white/75">{site.cta.body}</p>
                   <Button className="mt-5" style={{ backgroundColor: site.colors.accent }}>지금 상담 요청</Button>
                 </div>

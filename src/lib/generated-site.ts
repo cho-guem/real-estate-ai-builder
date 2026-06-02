@@ -103,16 +103,9 @@ export function buildGeneratedSiteData({
   const paletteOptions = readObjectArray(design.paletteOptions);
   const typographyOptions = readObjectArray(design.typographyOptions);
   const layoutOptions = readObjectArray(design.layoutOptions);
-  // Prefer the resolved objects saved at approve_design time; fall back to ID lookup
-  const selectedPalette =
-    (isObject(design.selectedPalette) ? design.selectedPalette : null) ??
-    getSelectedOption(paletteOptions, readString(design.selectedPaletteId));
-  const selectedTypography =
-    (isObject(design.selectedTypography) ? design.selectedTypography : null) ??
-    getSelectedOption(typographyOptions, readString(design.selectedTypographyId));
-  const selectedLayout =
-    (isObject(design.selectedLayout) ? design.selectedLayout : null) ??
-    getSelectedOption(layoutOptions, readString(design.selectedLayoutId));
+  const selectedPalette = getSelectedOption(paletteOptions, readString(design.selectedPaletteId));
+  const selectedTypography = getSelectedOption(typographyOptions, readString(design.selectedTypographyId));
+  const selectedLayout = getSelectedOption(layoutOptions, readString(design.selectedLayoutId));
   const colors = readStringArray(selectedPalette.colors);
   const sections = readObjectArray(landing.sections);
   const selectedCandidates = readObjectArray(benchmark.selectedCandidates);
@@ -228,12 +221,6 @@ export function buildGeneratedSiteData({
       styleId: readString(selectedTypography.id) || "professional-sans",
       heading: readString(selectedTypography.name) || "전문 산세리프",
       body: readString(selectedTypography.description) || "읽기 쉬운 본문",
-      fontFamily:
-        (readString(selectedTypography.id) || "professional-sans") === "editorial-serif"
-          ? "Georgia, 'Times New Roman', serif"
-          : (readString(selectedTypography.id) || "professional-sans") === "compact-modern"
-            ? "'Helvetica Neue', Arial, sans-serif"
-            : "system-ui, -apple-system, sans-serif",
     },
     layout: {
       styleId: readString(selectedLayout.id) || "conversion-landing",

@@ -14,7 +14,6 @@ export interface GeneratedSiteTypography {
   styleId: string;
   heading: string;
   body: string;
-  fontFamily: string;
 }
 
 export interface GeneratedSiteLayout {

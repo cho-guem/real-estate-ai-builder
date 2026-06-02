@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -34,6 +35,9 @@ import {
   INDUSTRY_OPTIONS,
   REAL_ESTATE_SPECIALTIES,
   REAL_ESTATE_SPECIALTY_GUIDES,
+  TARGET_AUDIENCES,
+  TRANSACTION_TYPES,
+  mapSpecialtyToPropertyType,
   type Industry,
   type RealEstateSpecialty,
 } from "@/config/project-options";
@@ -97,6 +101,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function WebsiteGeneratorDashboard({ recentWebsites }: GeneratorDashboardProps) {
+  const router = useRouter();
   const [industry, setIndustry] = useState<Industry>("real_estate");
   const [realEstateType, setRealEstateType] =
     useState<RealEstateSpecialty>("공장,창고,토지");
@@ -153,25 +158,36 @@ export function WebsiteGeneratorDashboard({ recentWebsites }: GeneratorDashboard
     setError(null);
 
     try {
-      const response = await fetch("/api/website-generator", {
+      const response = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           industry,
-          businessType: realEstateType,
           realEstateType,
+          propertySpecialty: realEstateType,
+          propertyType: mapSpecialtyToPropertyType(realEstateType),
+          transactionType: TRANSACTION_TYPES[0],
+          targetAudience: TARGET_AUDIENCES[0],
           companyName,
+          name: `${companyName} 웹사이트`,
           region,
-          brandColor,
-          designStyle,
-          domain,
+          purpose: `${companyName}의 ${region} 부동산 홈페이지 목업 제작`,
           deploymentMode,
         }),
       });
 
-      const payload = await response.json();
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || "웹사이트 생성 요청에 실패했습니다.");
+        throw new Error(
+          payload.details
+            ? `${payload.error || "웹사이트 생성 요청에 실패했습니다."} (${payload.details})`
+            : payload.error || "웹사이트 생성 요청에 실패했습니다."
+        );
+      }
+
+      if (payload.project?.id) {
+        router.push(payload.nextStep ?? `/projects/${payload.project.id}?startWorkflow=1`);
+        return;
       }
 
       setResult(payload);
@@ -193,9 +209,13 @@ export function WebsiteGeneratorDashboard({ recentWebsites }: GeneratorDashboard
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deploymentMode }),
       });
-      const payload = await response.json();
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || "사전 점검에 실패했습니다.");
+        throw new Error(
+          payload.details
+            ? `${payload.error || "사전 점검에 실패했습니다."} (${payload.details})`
+            : payload.error || "사전 점검에 실패했습니다."
+        );
       }
 
       setPreflightResult(payload);
@@ -228,9 +248,13 @@ export function WebsiteGeneratorDashboard({ recentWebsites }: GeneratorDashboard
           deploymentConfirmed: true,
         }),
       });
-      const payload = await response.json();
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || "실제 배포 요청 생성에 실패했습니다.");
+        throw new Error(
+          payload.details
+            ? `${payload.error || "실제 배포 요청 생성에 실패했습니다."} (${payload.details})`
+            : payload.error || "실제 배포 요청 생성에 실패했습니다."
+        );
       }
 
       setResult((current) =>

@@ -74,25 +74,39 @@ export class WordPressDeploymentStepRepository extends BaseRepository<
     if (error) this.handleError(error);
     return updated!;
   }
-  
-  async updateStatusByStepKey(
-  deploymentId: string,
-  stepKey: string,
-  status: DeploymentStepUpdate["status"]
-): Promise<DeploymentStep[]> {
-  const { data, error } = await this.db
-    .from("wordpress_deployment_steps")
-    .update({
-      status,
-      updated_at: new Date().toISOString(),
-    } as DeploymentStepUpdate)
-    .eq("deployment_id", deploymentId)
-    .eq("step_key", stepKey)
-    .select();
 
-  if (error) this.handleError(error);
-  return data ?? [];
-}
+  async updateStatusByStepKey(
+    deploymentId: string,
+    stepKey: string,
+    status: DeploymentStepUpdate["status"],
+    errorMessage?: string | null
+  ): Promise<DeploymentStep> {
+    const now = new Date().toISOString();
+    const update: DeploymentStepUpdate = {
+      status,
+      error_message: errorMessage ?? null,
+      updated_at: now,
+    };
+
+    if (status === "running") {
+      update.started_at = now;
+    }
+
+    if (status === "completed" || status === "failed" || status === "skipped") {
+      update.completed_at = now;
+    }
+
+    const { data: updated, error } = await this.db
+      .from("wordpress_deployment_steps")
+      .update(update)
+      .eq("deployment_id", deploymentId)
+      .eq("step_key", stepKey)
+      .select()
+      .single();
+
+    if (error) this.handleError(error);
+    return updated!;
+  }
 
   async delete(id: string): Promise<void> {
     const { error } = await this.db.from("wordpress_deployment_steps").delete().eq("id", id);

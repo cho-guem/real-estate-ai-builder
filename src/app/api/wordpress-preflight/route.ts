@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestDbAndUser } from "@/lib/supabase/request-user";
 
 export const runtime = "nodejs";
 
@@ -21,22 +21,21 @@ type PreflightCheck = {
 };
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+  const { db: supabase } = await getRequestDbAndUser();
 
   const body = await request.json().catch(() => ({}));
   const deploymentMode = body.deploymentMode === "existing_hosting" ? "existing_hosting" : "managed_hosting";
   const config = {
     wordpressPath: process.env.WORDPRESS_TARGET_PATH || "",
     wpCliBin: process.env.WORDPRESS_WPCLI_BIN || "wp",
-    pluginZipPath: process.env.WORDPRESS_PLUGIN_PACKAGE_PATH || "",
-    elementorTemplatePath: process.env.WORDPRESS_ELEMENTOR_TEMPLATE_PATH || "",
+    pluginZipPath: resolvePreflightAssetPath(
+      process.env.WORDPRESS_PLUGIN_PACKAGE_PATH || "ai-real-estate-property-manager-wizard.zip",
+      "plugin"
+    ),
+    elementorTemplatePath: resolvePreflightAssetPath(
+      process.env.WORDPRESS_ELEMENTOR_TEMPLATE_PATH || "elementor-template.json",
+      "elementor"
+    ),
     dockerBin: process.env.MANAGED_HOSTING_DOCKER_BIN || "docker",
     managedVolumePath: process.env.MANAGED_HOSTING_VOLUME_PATH || "",
     composeFile: process.env.MANAGED_HOSTING_COMPOSE_FILE || "docker-compose.wordpress.yml",
@@ -70,18 +69,22 @@ export async function POST(request: Request) {
       message: "기본 주소를 자동으로 만들 준비가 되었습니다.",
     });
   }
-  checks.push(checkRemotePathConfigured(
-    "plugin_zip",
-    "홈페이지 기능 파일 준비",
-    config.pluginZipPath,
-    "홈페이지 기능 파일 경로를 설정해주세요."
-  ));
-  checks.push(checkRemotePathConfigured(
-    "elementor_template",
-    "디자인 파일 준비",
-    config.elementorTemplatePath,
-    "홈페이지 디자인 파일 경로를 설정해주세요."
-  ));
+  checks.push(
+    await checkPathExists(
+      "plugin_zip",
+      "홈페이지 기능 파일 준비",
+      config.pluginZipPath,
+      "홈페이지 기능 파일 경로를 설정해주세요."
+    )
+  );
+  checks.push(
+    await checkPathExists(
+      "elementor_template",
+      "디자인 파일 준비",
+      config.elementorTemplatePath,
+      "홈페이지 디자인 파일 경로를 설정해주세요."
+    )
+  );
 
   return NextResponse.json({
     passed: checks.every((check) => check.status !== "error"),
@@ -91,7 +94,7 @@ export async function POST(request: Request) {
 }
 
 async function checkSupabaseConnection(
-  supabase: Awaited<ReturnType<typeof createClient>>
+  supabase: Awaited<ReturnType<typeof getRequestDbAndUser>>["db"]
 ): Promise<PreflightCheck> {
   try {
     const { error } = await supabase.from("projects").select("id").limit(1);
@@ -375,18 +378,6 @@ async function checkManagedVolumeWritable(volumePath: string): Promise<Preflight
   }
 }
 
-function checkRemotePathConfigured(
-  key: string,
-  label: string,
-  configuredPath: string,
-  help?: string
-): PreflightCheck {
-  if (!configuredPath) {
-    return { key, label, status: "error", passed: false, message: "필요한 준비 정보가 아직 설정되지 않았습니다.", help };
-  }
-  return { key, label, status: "success", passed: true, message: `경로 설정 완료: ${configuredPath}` };
-}
-
 function failedCheck(
   key: string,
   label: string,
@@ -403,4 +394,28 @@ function failedCheck(
     help,
     command,
   };
+}
+
+function resolvePreflightAssetPath(assetPath: string, kind: "plugin" | "elementor") {
+  const fallbackName =
+    kind === "elementor" ? "elementor-template.json" : "ai-real-estate-property-manager.zip";
+  const wizardPluginName = "ai-real-estate-property-manager-wizard.zip";
+  const candidates = path.isAbsolute(assetPath)
+    ? [assetPath]
+    : [
+        path.join(process.cwd(), assetPath),
+        path.join(process.cwd(), "deploy-assets", assetPath),
+        path.join(process.cwd(), "deploy-assets", fallbackName),
+        path.join(process.cwd(), "deploy-assets", wizardPluginName),
+        path.join(process.cwd(), "fixed-package", "wordpress-site-package", assetPath),
+        path.join(process.cwd(), "fixed-package", "wordpress-site-package", path.basename(assetPath)),
+        path.join(process.cwd(), "fixed-package", "wordpress-site-package", fallbackName),
+        path.join(process.cwd(), "fixed-package", "wordpress-site-package", wizardPluginName),
+        path.join(process.cwd(), "wordpress-site-package", assetPath),
+        path.join(process.cwd(), "wordpress-site-package", path.basename(assetPath)),
+        path.join(process.cwd(), "wordpress-site-package", fallbackName),
+        path.join(process.cwd(), "wordpress-site-package", wizardPluginName),
+      ];
+
+  return candidates.find((candidate) => Boolean(candidate) && existsSync(candidate)) ?? "";
 }

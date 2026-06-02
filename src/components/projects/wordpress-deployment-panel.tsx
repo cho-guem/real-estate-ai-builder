@@ -1,22 +1,14 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Circle, Cloud, Loader2, PlayCircle, Server, ShieldCheck, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Circle, Loader2, PlayCircle, Server, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import type { Tables } from "@/types/database.types";
 import { WORDPRESS_DEPLOYMENT_STEPS } from "@/types/wordpress-deployment.types";
 
 type DeploymentPanelProps = {
   projectId: string;
-  projectName: string;
+  projectName?: string;
   userEmail?: string | null;
   initialSite: Tables<"wordpress_sites"> | null;
   initialDeployment: Tables<"wordpress_deployments"> | null;
@@ -57,7 +49,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function WordPressDeploymentPanel({
   projectId,
-  projectName,
+  projectName: _projectName,
   userEmail,
   initialSite,
   initialDeployment,
@@ -68,7 +60,6 @@ export function WordPressDeploymentPanel({
   const [adminEmail, setAdminEmail] = useState(userEmail ?? initialSite?.admin_email ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDryRunTesting, setIsDryRunTesting] = useState(false);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [site, setSite] = useState(initialSite);
   const [deployment, setDeployment] = useState(initialDeployment);
   const [steps, setSteps] = useState(initialSteps);
@@ -81,6 +72,8 @@ export function WordPressDeploymentPanel({
   );
   const logs = getDeploymentLogs(deployment);
   const canRunRealDeployment = Boolean(preflightResult?.passed && adminEmail);
+  const wordpressUrl = getWordPressUrl(site, deployment);
+  const adminUrl = wordpressUrl ? `${wordpressUrl.replace(/\/$/, "")}/wp-admin/` : site?.admin_url;
 
   useEffect(() => {
     if (!deployment || ["completed", "failed", "canceled"].includes(deployment.status)) return;
@@ -126,7 +119,6 @@ export function WordPressDeploymentPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           domain: domain || undefined,
-           companyName: projectName,
           adminEmail,
           provider: deploymentMode === "managed_hosting" ? "managed_host" : "wp_cli",
           deploymentMode,
@@ -143,7 +135,6 @@ export function WordPressDeploymentPanel({
       setSite(payload.site);
       setDeployment(payload.deployment);
       setSteps(payload.steps ?? []);
-      setIsConfirmOpen(false);
       setMessage("홈페이지 설치 요청이 접수되었습니다. 설치 진행 상태에서 현재 단계를 확인할 수 있습니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다.");
@@ -208,7 +199,7 @@ export function WordPressDeploymentPanel({
           onClick={startDeployment}
           disabled={!canRunRealDeployment || isSubmitting}
         >
-          <PlayCircle className="h-4 w-4" />
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
           홈페이지 설치 시작
         </Button>
       </div>
@@ -281,16 +272,29 @@ export function WordPressDeploymentPanel({
       <div className="mt-5 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          실제 설치 전에는 반드시 사전 점검을 먼저 진행합니다. 기존 사이트를 사용하는 경우 현재 홈페이지가 덮어써지지 않도록
-          설치 가능 여부를 먼저 확인합니다.
+          실제 설치 전에는 반드시 사전 점검을 먼저 진행합니다. 기존 사이트를 사용하는 경우 현재 홈페이지가 덮어써지지 않도록 설치 가능 여부를 먼저 확인합니다.
         </p>
       </div>
 
-      {(site?.site_url || site?.admin_url) && (
+      {(wordpressUrl || adminUrl) && (
         <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
           <p className="font-semibold">배포 URL</p>
-          {site.site_url && <p className="mt-1">사이트: {site.site_url}</p>}
-          {site.admin_url && <p className="mt-1">관리자: {site.admin_url}</p>}
+          {wordpressUrl && (
+            <p className="mt-1">
+              사이트:{" "}
+              <a href={wordpressUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+                {wordpressUrl}
+              </a>
+            </p>
+          )}
+          {adminUrl && (
+            <p className="mt-1">
+              관리자:{" "}
+              <a href={adminUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+                {adminUrl}
+              </a>
+            </p>
+          )}
         </div>
       )}
 
@@ -315,7 +319,6 @@ export function WordPressDeploymentPanel({
         </div>
       </div>
 
-     
     </section>
   );
 }
@@ -340,6 +343,27 @@ function getSiteDeploymentMode(site: Tables<"wordpress_sites"> | null) {
   const plan = metadata.plan;
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) return "managed_hosting";
   return plan.deploymentMode === "existing_hosting" ? "existing_hosting" : "managed_hosting";
+}
+
+function getWordPressUrl(
+  site: Tables<"wordpress_sites"> | null,
+  deployment: Tables<"wordpress_deployments"> | null
+) {
+  if (site?.site_url) return site.site_url;
+
+  const output = deployment?.output;
+  if (output && typeof output === "object" && !Array.isArray(output)) {
+    const url = (output as Record<string, unknown>).wordpressUrl;
+    if (typeof url === "string" && url.length > 0) return url;
+  }
+
+  const metadata = site?.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const url = (metadata as Record<string, unknown>).wordpressUrl;
+    if (typeof url === "string" && url.length > 0) return url;
+  }
+
+  return site?.domain ? `https://${site.domain}` : null;
 }
 
 function getDeploymentLogs(deployment: Tables<"wordpress_deployments"> | null) {

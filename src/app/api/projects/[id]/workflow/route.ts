@@ -2,7 +2,7 @@
 import { WORKFLOW_STEPS } from "@/config/workflow-steps";
 import { defaultIndustryPreset } from "@/presets";
 import type { ProjectConfig } from "@/config/project-options";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestDbAndUser } from "@/lib/supabase/request-user";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
 import { buildGeneratedSiteData } from "@/lib/generated-site";
@@ -161,12 +161,7 @@ function mergeArtifactData(current: Json, patch: Record<string, unknown>): Json 
 }
 
 async function getAuthedProject(id: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { supabase, user: null, project: null };
+  const { db: supabase, user } = await getRequestDbAndUser();
 
   const projectService = new ProjectService(supabase);
   const project = await projectService.getProjectById(id);

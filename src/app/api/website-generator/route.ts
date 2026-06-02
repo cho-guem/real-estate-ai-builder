@@ -1,9 +1,6 @@
-import axios from "axios";
-import https from "https";
-
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestDbAndUser } from "@/lib/supabase/request-user";
 import { ProjectService } from "@/services/project.service";
 import { GenerationWorkflowService } from "@/services/generation-workflow.service";
 import { initializeProjectWebsitePipeline } from "@/services/project-website-pipeline.service";
@@ -57,141 +54,113 @@ function designStyleLabel(value: z.infer<typeof generatorSchema>["designStyle"])
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const { db: supabase, user, isFallbackUser } = await getRequestDbAndUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-  }
+    const body = await request.json().catch(() => null);
+    const parsed = generatorSchema.safeParse(body);
 
-  const body = await request.json().catch(() => null);
-  const parsed = generatorSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: "입력값을 확인해주세요.",
+          fieldErrors: parsed.error.flatten().fieldErrors,
+        },
+        { status: 400 }
+      );
+    }
 
-  if (!parsed.success) {
+    const {
+      industry,
+      businessType,
+      realEstateType = businessType,
+      companyName,
+      region,
+      brandColor,
+      designStyle,
+      domain,
+      deploymentMode,
+    } = parsed.data;
+    const projectService = new ProjectService(supabase);
+    const slug = generateSlug();
+    const projectConfig: ProjectConfig & Record<string, unknown> = {
+      industry,
+      industryTemplateId: "real_estate",
+      deploymentMode,
+      businessType,
+      realEstateType,
+      propertySpecialty: realEstateType,
+      companyName,
+      region,
+      brandColor,
+      designStyle,
+      propertyType: mapSpecialtyToPropertyType(realEstateType),
+      transactionType:
+        realEstateType === "공장,창고,토지" || realEstateType === "펜션·숙박" ? "매매" : "임대",
+      targetAudience: targetAudienceValue(realEstateType),
+      purpose: `${companyName}의 ${designStyleLabel(designStyle)} 스타일 부동산 웹사이트 자동 생성`,
+    };
+
+    const project = await projectService.createProject({
+      user_id: user.id,
+      name: `${companyName} 웹사이트`,
+      slug,
+      deployment_mode: deploymentMode,
+      status: "draft",
+      config: projectConfig as Json,
+    });
+
+    const pipeline = await initializeProjectWebsitePipeline({
+      db: supabase,
+      project,
+      userId: user.id,
+      userEmail: user.email,
+      domain: domain || undefined,
+    });
+    const workflowService = new GenerationWorkflowService(supabase);
+    const artifacts = await workflowService.getRunArtifacts(pipeline.run.id);
+    const generatedSiteData = buildGeneratedSiteData({
+      artifacts,
+      config: projectConfig,
+      projectName: project.name,
+      workflowRunId: pipeline.run.id,
+    });
+    const elementorTemplate = mapGeneratedSiteToElementor(generatedSiteData);
+    const elementorDebug = buildElementorExportDebug(generatedSiteData);
+    const seoConfig = pipeline.deployment.plan.seo;
+    const updatedProject = await projectService.updateProject(project.id, {
+      config: ({
+        ...projectConfig,
+        generatedSiteData,
+        generatedAt: new Date().toISOString(),
+        elementorTemplateArtifact: {
+          type: "elementor_template_json",
+          document: elementorTemplate,
+          debug: elementorDebug,
+        },
+        seoConfig,
+        deploymentMode,
+      } as unknown) as Json,
+    });
+
     return NextResponse.json(
       {
-        error: "입력값을 확인해주세요.",
-        fieldErrors: parsed.error.flatten().fieldErrors,
+        project: updatedProject,
+        site: pipeline.deployment.site,
+        deployment: pipeline.deployment.deployment,
+        steps: pipeline.deployment.steps,
+        authMode: isFallbackUser ? "fallback" : "session",
       },
-      { status: 400 }
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("[website-generator] failed", error);
+    return NextResponse.json(
+      {
+        error: "웹사이트 생성 중 서버 오류가 발생했습니다.",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
     );
   }
-
-  const {
-    industry,
-    businessType,
-    realEstateType = businessType,
-    companyName,
-    region,
-    brandColor,
-    designStyle,
-    domain,
-    deploymentMode,
-  } = parsed.data;
-  const projectService = new ProjectService(supabase);
-  const slug = generateSlug();
-  const projectConfig: ProjectConfig & Record<string, unknown> = {
-    industry,
-    industryTemplateId: "real_estate",
-    deploymentMode,
-    businessType,
-    realEstateType,
-    propertySpecialty: realEstateType,
-    companyName,
-    region,
-    brandColor,
-    designStyle,
-    propertyType: mapSpecialtyToPropertyType(realEstateType),
-    transactionType: realEstateType === "공장,창고,토지" || realEstateType === "펜션·숙박" ? "매매" : "임대",
-    targetAudience: targetAudienceValue(realEstateType),
-    purpose: `${companyName}의 ${designStyleLabel(designStyle)} 스타일 부동산 웹사이트 자동 생성`,
-  };
-
-  const project = await projectService.createProject({
-    user_id: user.id,
-    name: `${companyName} 웹사이트`,
-    slug,
-    deployment_mode: deploymentMode,
-    status: "draft",
-    config: projectConfig as Json,
-  });
-
-  const pipeline = await initializeProjectWebsitePipeline({
-    db: supabase,
-    project,
-    userId: user.id,
-    userEmail: user.email,
-    domain: domain || undefined,
-  });
-  const workflowService = new GenerationWorkflowService(supabase);
-  const artifacts = await workflowService.getRunArtifacts(pipeline.run.id);
-  const generatedSiteData = buildGeneratedSiteData({
-    artifacts,
-    config: projectConfig,
-    projectName: project.name,
-    workflowRunId: pipeline.run.id,
-  });
-  const elementorTemplate = mapGeneratedSiteToElementor(generatedSiteData);
-
-  const username = process.env.WORDPRESS_USERNAME!;
-const password = process.env.WORDPRESS_APP_PASSWORD!;
-const siteUrl = process.env.WORDPRESS_URL!;
-
-const credentials = Buffer.from(
-  `${username}:${password}`
-).toString("base64");
-
-const agent = new https.Agent({
-  rejectUnauthorized: false,
-});
-
-const wpResponse = await axios.post(
-  `${siteUrl}/wp-json/wp/v2/pages`,
-  {
-    
-   title: "홈페이지",
-   content: "홈페이지 내용입니다.",
-    status: "publish",
-  },
-  {
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/json",
-    },
-    httpsAgent: agent,
-  }
-);
-
-const wpData = wpResponse.data;
-
-console.log("워드프레스 생성 완료:", wpData); 
-
-  const elementorDebug = buildElementorExportDebug(generatedSiteData);
-  const seoConfig = pipeline.deployment.plan.seo;
-  const updatedProject = await projectService.updateProject(project.id, {
-    config: ({
-      ...projectConfig,
-      generatedSiteData,
-      generatedAt: new Date().toISOString(),
-      elementorTemplateArtifact: {
-        type: "elementor_template_json",
-        document: elementorTemplate,
-        debug: elementorDebug,
-      },
-      seoConfig,
-      deploymentMode,
-    } as unknown) as Json,
-  });
-
-  return NextResponse.json(
-    {
-      project: updatedProject,
-      site: pipeline.deployment.site,
-      deployment: pipeline.deployment.deployment,
-      steps: pipeline.deployment.steps,
-    },
-    { status: 201 }
-  );
 }
