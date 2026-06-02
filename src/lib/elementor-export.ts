@@ -43,7 +43,7 @@ function percent(size: number) {
   return { unit: "%", size };
 }
 
-function createElementorBuilder() {
+function createElementorBuilder(fontFamily = "Noto Sans KR, system-ui, -apple-system, sans-serif") {
   const nextId = createIdFactory();
   const skippedInvalidNodes: string[] = [];
 
@@ -68,7 +68,7 @@ function createElementorBuilder() {
       header_size: headerSize,
       title_color: "#0f172a",
       typography_typography: "custom",
-      typography_font_family: "Noto Sans KR, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+      typography_font_family: fontFamily,
       typography_font_size: fontSize(isHero ? 56 : headerSize === "h2" ? 34 : 20),
       ...(isHero
         ? {
@@ -89,7 +89,7 @@ function createElementorBuilder() {
       editor: compactText(editor, "내용을 입력하세요."),
       text_color: "#475569",
       typography_typography: "custom",
-      typography_font_family: "Noto Sans KR, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+      typography_font_family: fontFamily,
       typography_font_size: fontSize(16),
       typography_line_height: { unit: "em", size: 1.65 },
       _margin: dimensions(0, 0, 12, 0),
@@ -224,7 +224,14 @@ function createElementorBuilder() {
 }
 
 export function mapGeneratedSiteToElementor(site: GeneratedSiteData): ElementorExportDocument {
-  const b = createElementorBuilder();
+  const fontFamily =
+    site.typography.fontFamily ??
+    (site.typography.styleId === "editorial-serif"
+      ? "Georgia, 'Times New Roman', serif"
+      : site.typography.styleId === "compact-modern"
+        ? "'Helvetica Neue', Arial, sans-serif"
+        : "Noto Sans KR, system-ui, -apple-system, sans-serif");
+  const b = createElementorBuilder(fontFamily);
   const hero = site.sections.find((item) => item.type === "hero");
   const cta = site.sections.find((item) => item.type === "cta");
   const map = site.sections.find((item) => item.type === "map");

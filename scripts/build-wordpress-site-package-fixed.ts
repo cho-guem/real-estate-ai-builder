@@ -50,6 +50,7 @@ const generatedSite: GeneratedSiteData = {
     styleId: "professional-sans",
     heading: "전문 산세리프",
     body: "읽기 쉬운 본문",
+    fontFamily: "system-ui, -apple-system, sans-serif",
   },
   layout: {
     styleId: "conversion-landing",
